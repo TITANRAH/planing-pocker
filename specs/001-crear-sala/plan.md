@@ -2,12 +2,13 @@
 
 - **Spec:** ./spec.md (versión 1.0)
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16)
+- **Estado:** Aprobado (2026-10-16) · versión 1.1
 
 ## 1. Resumen técnico
 Al ser la primera feature, incluye montar el proyecto: Next.js (App Router) + TypeScript strict,
-Tailwind + shadcn/ui, Prisma sobre el Postgres de Supabase, Vitest y Playwright, con Supabase
-local (`supabase start`) para desarrollo y pruebas.
+Tailwind + shadcn/ui, Prisma sobre el Postgres de Supabase, Vitest y Playwright, con un proyecto de
+Supabase en la nube (plan Free) para desarrollo y pruebas, y otro para producción.
+Node 22 LTS fijado con `.nvmrc`.
 La sala y sus participantes se guardan en Postgres vía Prisma; cada participante se identifica
 con un token secreto en una cookie httpOnly (en BD solo se guarda su hash).
 La conexión en vivo usa Supabase Realtime **presence** en un canal por sala. Un "latido" cada
@@ -105,6 +106,13 @@ los plazos sin esperar.
 - Tiempos: cerrar la pestaña dispara `leave` de inmediato (≤ 2 s, RF-08/RF-10); una pérdida de
   red se detecta por el heartbeat de Realtime, configurado a ≤ 25 s (≤ 30 s, RF-10).
 
+**Entorno** (`.env.local`, fuera de git; nombres en `.env.example`)
+- `DATABASE_URL`: cadena del pooler de Supabase (puerto 6543, modo transacción) para la app.
+- `DIRECT_URL`: conexión directa (puerto 5432), solo para `prisma migrate`.
+- `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (publishable key; reemplaza a la antigua anon key): para Realtime en el cliente.
+- Las pruebas de integración y e2e crean salas con el prefijo `test-` en el nombre y las
+  borran al terminar (`onDelete: Cascade` elimina también sus participantes).
+
 ## 5. UI
 | Ruta | Contenido | Estados |
 |---|---|---|
@@ -134,10 +142,16 @@ Todo en español y mobile-first.
 | Decisión | Alternativas descartadas | Motivo |
 |---|---|---|
 | Token propio en cookie httpOnly | Supabase Anonymous Auth | Decisión del usuario: más simple, sin mezclar sesiones con Prisma. |
-| Supabase local con CLI | Proyecto en la nube | Decisión del usuario: pruebas aisladas y gratis. |
+| Supabase en la nube (plan Free): `dev` para desarrollo y pruebas, `prod` para producción | Supabase local con CLI + Docker | Decisión del usuario (cambio v1.1): sin Docker. **Riesgos:** dev y pruebas comparten la BD (se mitiga con datos `test-` y limpieza); el plan Free pausa el proyecto tras 7 días sin actividad (se reactiva desde el panel). |
 | Canal Realtime público protegido por un `roomId` no deducible | Canales privados con RLS | Los canales privados exigen Supabase Auth. **Riesgo:** quien conozca el link puede escuchar la presence; aceptable porque solo viajan apodos. Hay que revisarlo en la feature 002: los votos **nunca** viajarán por Realtime (Art. VI). |
 | Expiración "perezosa" calculada con `now` | Cron o servidor persistente | Vercel es serverless; así no hay procesos en segundo plano. |
 | `markDisconnected` lo reportan los demás clientes | Solo heartbeat | Da la precisión de 2 min que pide la spec. El respaldo de 2 min 30 s del heartbeat cubre el caso en que no queda nadie en la sala. |
 | ID de sala con `crypto` (sin dependencias) | nanoid / UUID | Unos 72 bits de aleatoriedad en 12 caracteres para la URL; cumple RF-03. |
 | Prisma vía pooler de conexiones en producción | Conexión directa | Las funciones serverless agotan las conexiones directas; se usa `directUrl` para las migraciones. |
-| Nuevo comando `pnpm db:start` en `agents.md` | — | Necesario para levantar Supabase local; se añade en la tarea T005. |
+| Node 22 LTS con `.nvmrc` y `engines` | Node 20 | pnpm 11 exige Node ≥ 22.13. |
+
+## 8. Historial de cambios
+| Versión | Fecha | Tipo | Cambio |
+|---|---|---|---|
+| 1.0 | 2026-10-16 | Inicial | Versión inicial |
+| 1.1 | 2026-10-16 | Mejora técnica | Supabase local → nube (plan Free); Node 22 con `.nvmrc`. Spec sin cambios. |

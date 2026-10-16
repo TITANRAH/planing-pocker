@@ -2,35 +2,32 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16)
+- **Estado:** Aprobado (2026-10-16) · cambio v1.1 aprobado (2026-10-16)
 
 ## Fase 1 — Preparación
-- [ ] **T001** Montar Next.js (App Router) + TypeScript strict + Tailwind + ESLint + Prettier
+- [x] **T001** Montar Next.js (App Router) + TypeScript strict + Tailwind + ESLint + Prettier
   - **RF:** — (infraestructura)
   - **Archivos:** `package.json`, `tsconfig.json`, `eslint.config.mjs`, `.prettierrc`, `src/app/*`
   - **Prueba primero:** no aplica; se verifica con `pnpm lint` y `pnpm typecheck`
   - **Hecho cuando:** `pnpm dev` arranca, y lint y typecheck pasan, con `strict: true` y `no-explicit-any` como error
-- [ ] **T002** Configurar Vitest
+- [x] **T002** Configurar Vitest
   - **RF:** —
   - **Archivos:** `vitest.config.ts`, `tests/unit/smoke.test.ts`
   - **Prueba primero:** `smoke.test.ts` falla antes de configurar el runner
   - **Hecho cuando:** `pnpm test` ejecuta y pasa
-- [ ] **T003** Configurar Playwright
+- [x] **T003** Configurar Playwright
   - **RF:** —
   - **Archivos:** `playwright.config.ts`, `tests/e2e/smoke.spec.ts`
   - **Prueba primero:** `smoke.spec.ts` comprueba que `/` responde
   - **Hecho cuando:** `pnpm test:e2e` levanta la app y pasa
-- [ ] **T004** Inicializar shadcn/ui y añadir card, input, button, form, label, badge, skeleton y sonner
+- [x] **T004** Inicializar shadcn/ui y añadir card, input, button, form, label, badge, skeleton y sonner
   - **RF:** —
   - **Archivos:** `components.json`, `src/components/ui/*`, `src/lib/utils.ts`
   - **Prueba primero:** no aplica; se verifica con typecheck y lint
   - **Hecho cuando:** los componentes compilan y `<Toaster />` está en el layout
-- [ ] **T005** Supabase local + variables de entorno + comando en agents.md
-  - **RF:** —
-  - **Archivos:** `supabase/config.toml`, `.env.example`, `.gitignore`, `package.json` (`db:start`, `db:stop`), `agents.md`
-  - **Prueba primero:** no aplica; se verifica con `pnpm db:start`
-  - **Hecho cuando:** Supabase local responde, `.env.local` está ignorado por git y `agents.md` lista `pnpm db:start`
-- [ ] **T006** Prisma: esquema `Room`/`Participant`, migración `init_rooms` y cliente único
+- [ ] ~~**T005** Supabase local + variables de entorno + comando en agents.md~~
+  - **Reemplazada por T021** en el cambio v1.1 (Supabase en la nube). No se implementa.
+- [x] **T006** Prisma: esquema `Room`/`Participant`, migración `init_rooms` y cliente único
   - **RF:** — (base de RF-01…RF-11)
   - **Archivos:** `prisma/schema.prisma`, `prisma/migrations/*`, `src/server/db.ts`, `tests/integration/db.test.ts`
   - **Prueba primero:** `db.test.ts` crea y lee una `Room` en la BD local (falla sin el esquema)
@@ -131,3 +128,31 @@
 | RF-09 | T010, T013, T020 |
 | RF-10 | T009, T014, T015, T019, T020 |
 | RF-11 | T013, T014, T019, T020 |
+
+## Cambio v1.1 — Supabase en la nube y Node 22
+
+**Orden de ejecución con el cambio:**
+T022 → T001 → T002 → T003 → T004 → T021 → T006 → T023 → T007 … (el resto sin cambios)
+
+- [x] **T021** Conectar el proyecto de Supabase en la nube (`planning-poker-dev`)
+  - **RF:** — (infraestructura; reemplaza a T005)
+  - **Archivos:** `.env.example`, `.gitignore`, `agents.md` (sección de configuración del entorno)
+  - **Prueba primero:** no aplica; la conexión se verifica en T006 al aplicar la migración en la nube
+  - **Hecho cuando:** `.env.example` lista `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`
+    y `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; `.env.local` está ignorado por git; el usuario creó el
+    proyecto y rellenó `.env.local`; `agents.md` explica cómo configurarlo
+  - **Requiere acción del usuario:** crear la cuenta y el proyecto en supabase.com y copiar las claves
+
+- [x] **T022** Fijar Node 22 en el proyecto
+  - **RF:** — (infraestructura)
+  - **Archivos:** `.nvmrc`, `package.json` (`engines.node: ">=22.13"`)
+  - **Prueba primero:** no aplica; se verifica con `nvm use` y `pnpm install` sin avisos
+  - **Hecho cuando:** `nvm use` selecciona Node 22 dentro del proyecto
+
+- [x] **T023** Limpieza de datos de prueba en la BD compartida
+  - **RF:** — (soporte de las pruebas de RF-01…RF-11)
+  - **Archivos:** `tests/helpers/test-data.ts`, `vitest.config.ts` (globalTeardown),
+    `playwright.config.ts` (globalTeardown), `tests/integration/test-data.test.ts`
+  - **Prueba primero:** crea una sala `test-<runId>-…`, ejecuta la limpieza y comprueba que la sala
+    y sus participantes ya no existen, y que una sala sin el prefijo de esa ejecución **no** se borra
+  - **Hecho cuando:** cada ejecución de pruebas usa un `runId` propio y borra solo sus datos al terminar

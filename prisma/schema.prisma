@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  MODERATOR
+  PLAYER
+}
+
+model Room {
+  id           String        @id // 12 caracteres aleatorios base64url (RF-03)
+  name         String
+  createdAt    DateTime      @default(now())
+  participants Participant[]
+}
+
+model Participant {
+  id             String    @id @default(cuid())
+  roomId         String
+  room           Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  nickname       String // tal como lo escribió (para mostrar)
+  nicknameKey    String? // normalizado (trim + minúsculas); null = apodo liberado
+  role           Role
+  tokenHash      String    @unique // SHA-256 del token de la cookie
+  lastSeenAt     DateTime  @default(now()) // último latido
+  disconnectedAt DateTime? // cuándo se lo vio desconectado; null = conectado
+  createdAt      DateTime  @default(now())
+
+  @@unique([roomId, nicknameKey])
+  @@index([roomId])
+}

@@ -76,9 +76,23 @@ App **Next.js full-stack** (App Router) desplegada en Vercel.
 | Pruebas unitarias | `pnpm test` |
 | Pruebas e2e | `pnpm test:e2e` |
 | Lint y formato | `pnpm lint` · `pnpm format` |
-| Chequeo de tipos | `pnpm typecheck` (`tsc --noEmit`) |
+| Chequeo de tipos | `pnpm typecheck` (`next typegen` + `tsc --noEmit`) |
 | Crear/aplicar migración | `pnpm prisma migrate dev` |
 | Regenerar cliente Prisma | `pnpm prisma generate` |
+
+### Configuración del entorno
+
+1. **Node 22:** ejecuta `nvm use` en la raíz (lee `.nvmrc`). pnpm 11 exige Node ≥ 22.13.
+2. **Dependencias:** `pnpm install`.
+3. **Supabase en la nube (plan Free):** crea un proyecto `planning-poker-dev` en supabase.com
+   para desarrollo y pruebas. Producción usa otro proyecto, `planning-poker-prod`.
+4. **Variables:** copia `.env.example` como `.env.local` y rellena los valores del proyecto
+   (Supabase → *Connect* y *Project Settings → API*). `.env.local` nunca se sube a git.
+5. **Base de datos:** `pnpm prisma migrate dev` aplica las migraciones.
+
+Las pruebas de integración y e2e usan la base de datos de `planning-poker-dev`: crean datos con
+el prefijo `test-<runId>-` y los borran al terminar. Si el proyecto lleva 7 días sin uso,
+Supabase lo pausa; se reactiva desde su panel.
 
 ## 5. Convenciones
 
