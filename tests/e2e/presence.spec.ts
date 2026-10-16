@@ -89,4 +89,33 @@ test.describe("presencia en vivo", () => {
       participantList(ana).getByRole("listitem").filter({ hasText: "Beto" }),
     ).toHaveCount(1);
   });
+
+  test("RF-11: si el moderador se va, la sala sigue funcionando para los jugadores", async ({
+    browser,
+  }) => {
+    const ana = await browser.newPage();
+    const url = await createRoomViaUi(ana, testRoomName("e2e-sin-moderador"), "Ana");
+    const beto = await joinViaUi(browser, url, "Beto");
+
+    await closeTab(ana);
+    await expect(status(beto, "Ana", "Desconectado")).toBeAttached({ timeout: 2_000 });
+    await joinViaUi(browser, url, "Carla");
+    await expect(participantItem(beto, "Carla")).toBeVisible({ timeout: 2_000 });
+  });
+
+  test("RF-11: el moderador que perdió su identidad entra como jugador con otro apodo", async ({
+    browser,
+  }) => {
+    const ana = await browser.newPage();
+    const url = await createRoomViaUi(ana, testRoomName("e2e-moderador-sin-cookie"), "Ana");
+
+    // Otro navegador: sin la cookie de la sala
+    const otroNavegador = await browser.newContext();
+    const anaOtra = await otroNavegador.newPage();
+    await anaOtra.goto(url);
+    await anaOtra.getByLabel("Tu apodo").fill("Ana móvil");
+    await anaOtra.getByRole("button", { name: "Entrar" }).click();
+    await expect(participantItem(anaOtra, "Ana móvil")).toBeVisible();
+    await expect(participantItem(anaOtra, "Ana móvil").getByText("Moderador")).toHaveCount(0);
+  });
 });

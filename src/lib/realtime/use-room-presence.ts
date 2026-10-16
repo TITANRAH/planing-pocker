@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useReducer, useRef } from "react";
+import { helloPayload } from "@/lib/realtime/outgoing";
 import {
   initialPresenceState,
   type InitialParticipant,
@@ -56,9 +57,10 @@ export function useRoomPresence({
 
     // La presence se replica entre servidores de Realtime por lotes (~2 s); el broadcast llega al
     // momento, así que adelanta los avisos de entrada y de salida (plan v1.2/v1.3, RF-08/RF-10)
+    const hello = helloPayload(me);
     const announce = () => {
-      void channel.track(me);
-      void channel.send({ type: "broadcast", event: "hello", payload: me });
+      void channel.track(hello);
+      void channel.send({ type: "broadcast", event: "hello", payload: hello });
     };
     // Al cerrar la pestaña el WebSocket se corta: el aviso va por beacon y lo emite el servidor
     const sayBye = () => {

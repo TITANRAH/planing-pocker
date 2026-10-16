@@ -557,3 +557,63 @@ describe("sayBye", () => {
     }
   });
 });
+
+describe("RF-11: la sala sin su moderador", () => {
+  it("RF-11: con el moderador desconectado y expirado, los jugadores siguen usando la sala", async () => {
+    const modJar = new FakeCookieJar();
+    const created = await createRoom(
+      { roomName: `${PREFIX}sin-moderador`, nickname: "Mod" },
+      { jar: modJar, now: NOW },
+    );
+    if (!created.ok) throw new Error(created.error);
+    const { roomId } = created.data;
+    const anaJar = new FakeCookieJar();
+    expect((await join(roomId, "Ana", NOW, anaJar)).ok).toBe(true);
+    await db.participant.update({
+      where: { id: created.data.participantId },
+      data: { disconnectedAt: at(10 * SEC) },
+    });
+
+    // Ana sigue enviando latidos mientras el moderador está fuera
+    expect(await heartbeat(roomId, { jar: anaJar, now: at(2 * MIN) })).toEqual({
+      ok: true,
+      data: null,
+    });
+    const later = at(3 * MIN);
+    expect((await join(roomId, "Carla", later)).ok).toBe(true);
+    expect(await heartbeat(roomId, { jar: anaJar, now: later })).toEqual({ ok: true, data: null });
+
+    const state = await getRoomState(roomId, { jar: anaJar, now: later });
+    if (!state.ok) throw new Error(state.error);
+    expect(state.data.participants.map((p) => [p.nickname, p.role])).toEqual([
+      ["Ana", "PLAYER"],
+      ["Carla", "PLAYER"],
+    ]);
+  });
+
+  it("RF-11: si el moderador pierde su identidad, entra como jugador con otro apodo y la sala sigue sin moderador", async () => {
+    const created = await createRoom(
+      { roomName: `${PREFIX}moderador-sin-identidad`, nickname: "Mod" },
+      { jar: new FakeCookieJar(), now: NOW },
+    );
+    if (!created.ok) throw new Error(created.error);
+    const { roomId } = created.data;
+
+    // Otro navegador (sin cookie), cuando la sesión antigua del moderador ya expiró
+    const newJar = new FakeCookieJar();
+    const later = at(3 * MIN);
+    expect(await resumeSession(roomId, { jar: newJar, now: later })).toEqual({
+      ok: false,
+      error: "NOT_A_PARTICIPANT",
+    });
+    const rejoined = await join(roomId, "Mod nuevo", later, newJar);
+    expect(rejoined.ok).toBe(true);
+
+    const state = await getRoomState(roomId, { jar: newJar, now: later });
+    if (!state.ok) throw new Error(state.error);
+    expect(state.data.room.id).toBe(roomId);
+    expect(state.data.participants).toEqual([
+      expect.objectContaining({ nickname: "Mod nuevo", role: "PLAYER" }),
+    ]);
+  });
+});

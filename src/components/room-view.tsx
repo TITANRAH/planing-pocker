@@ -30,10 +30,10 @@ export function RoomView({ state, onExpired }: Props) {
   });
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="gap-3">
-        <CardTitle>
-          <h1 className="text-xl font-semibold break-words">{state.room.name}</h1>
+    <Card className="w-full min-w-0 max-w-md">
+      <CardHeader className="min-w-0 gap-3">
+        <CardTitle className="min-w-0">
+          <h1 className="text-xl font-semibold wrap-anywhere">{state.room.name}</h1>
         </CardTitle>
         <CopyLinkButton roomId={state.room.id} />
       </CardHeader>

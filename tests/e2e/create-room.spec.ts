@@ -35,4 +35,10 @@ test.describe("crear sala", () => {
     await expect(page.getByText("Link copiado")).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url);
   });
+
+  test("la interfaz usa la fuente Geist", async ({ page }) => {
+    await page.goto("/");
+    const fontFamily = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+    expect(fontFamily).toMatch(/Geist/i);
+  });
 });

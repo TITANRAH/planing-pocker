@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { generateRoomId } from "@/lib/domain/room-id";
+import { byePayload } from "@/lib/realtime/outgoing";
 import {
   canJoin,
   isActive,
@@ -324,7 +325,7 @@ export async function sayBye(
   if (!me || !isActive(me, now)) return fail("NOT_A_PARTICIPANT");
 
   await Promise.all([
-    broadcastToRoom(roomId, "bye", { participantId: me.id }),
+    broadcastToRoom(roomId, "bye", byePayload(me.id)),
     db.participant.updateMany({
       where: { id: me.id, disconnectedAt: null },
       data: { disconnectedAt: now },

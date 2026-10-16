@@ -2,7 +2,7 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16) · cambios v1.1, v1.2 y v1.3 aprobados (2026-10-16)
+- **Estado:** Aprobado (2026-10-16) · cambios v1.1, v1.2 y v1.3 y corrección de bugs aprobados (2026-10-16)
 
 ## Fase 1 — Preparación
 - [x] **T001** Montar Next.js (App Router) + TypeScript strict + Tailwind + ESLint + Prettier
@@ -118,16 +118,16 @@
 | RF | Tareas |
 |---|---|
 | RF-01 | T007, T011, T016 |
-| RF-02 | T018 |
+| RF-02 | T018, T029 |
 | RF-03 | T008 |
 | RF-04 | T007, T012, T017 |
 | RF-05 | T009, T012 |
 | RF-06 | T009, T012, T017 |
 | RF-07 | T012, T017 |
-| RF-08 | T014, T015, T019, T020, T025 |
+| RF-08 | T014, T015, T019, T020, T025, T030 |
 | RF-09 | T010, T013, T020 |
-| RF-10 | T009, T014, T015, T019, T020, T024, T025, T026, T027, T028 |
-| RF-11 | T013, T014, T019, T020 |
+| RF-10 | T009, T014, T015, T019, T020, T024, T025, T026, T027, T028, T030 |
+| RF-11 | T013, T014, T019, T020, T031 |
 
 ## Cambio v1.1 — Supabase en la nube y Node 22
 
@@ -206,3 +206,41 @@ T022 → T001 → T002 → T003 → T004 → T021 → T006 → T023 → T007 …
     `beto.close()` pasa a `beto.goto("about:blank")` seguido de `beto.close()`, con un comentario
     que explica que `page.close()` de Playwright no dispara `pagehide`
   - **Hecho cuando:** el e2e pasa
+
+## Corrección — bugs de la verificación (verification.md, 2026-10-16)
+
+**Orden:** T029 → T030 → T031 → T032 → `sdd-verify`
+
+- [x] **T029** Bug: en móvil el título largo y el botón "Copiar link" se salen de la tarjeta
+  - **RF:** RF-02 (Art. III.3)
+  - **Archivos:** `tests/e2e/mobile.spec.ts`, `src/components/room-view.tsx`,
+    `src/components/copy-link-button.tsx`
+  - **Prueba primero (regresión):** con viewport de iPhone 13 y una sala con nombre largo sin
+    espacios (≤ 50 caracteres), el título y el botón "Copiar link" (con su texto) quedan dentro
+    de la tarjeta y del viewport, y el botón sigue copiando el link
+  - **Hecho cuando:** la prueba nueva y las e2e existentes pasan
+
+- [x] **T030** Bug: los mensajes Realtime enviados no se validan con Zod (Art. IV.1)
+  - **RF:** RF-08, RF-10
+  - **Archivos:** `src/lib/realtime/outgoing.ts`, `src/lib/realtime/use-room-presence.ts`,
+    `src/server/room-service.ts`, `tests/unit/realtime/outgoing.test.ts`
+  - **Prueba primero (regresión):** `helloPayload` y `byePayload` devuelven el payload validado
+    y lanzan un error con datos inválidos (apodo de 1 carácter, rol desconocido, id vacío)
+  - **Hecho cuando:** el hook (`track`/`hello`) y `sayBye` (`bye`) envían solo payloads
+    construidos con esas funciones, y las pruebas pasan
+
+- [x] **T031** Cobertura: criterios de RF-11 sin prueba
+  - **RF:** RF-11
+  - **Archivos:** `tests/integration/server/rooms.test.ts`, `tests/e2e/presence.spec.ts`
+  - **Prueba primero:** (a) con el moderador desconectado y expirado, los jugadores siguen
+    usando la sala: entra uno nuevo, los demás lo ven y el latido funciona; (b) si el moderador
+    pierde su identidad (navegador sin cookie), al abrir el link entra como jugador con un apodo
+    nuevo, sin badge de moderador, y la sala sigue existiendo
+  - **Hecho cuando:** las pruebas pasan (si alguna destapa un bug, se corrige en esta tarea)
+
+- [x] **T032** Bug visual: la app no usa la fuente Geist
+  - **RF:** — (presentación)
+  - **Archivos:** `src/app/globals.css`, `tests/e2e/create-room.spec.ts`
+  - **Prueba primero (regresión):** la fuente calculada del `<body>` incluye "Geist"
+  - **Hecho cuando:** la prueba pasa
+

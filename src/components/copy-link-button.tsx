@@ -26,11 +26,18 @@ export function CopyLinkButton({ roomId }: { roomId: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
-      <span className="flex-1 truncate font-mono text-sm" title={link}>
+    <div className="flex min-w-0 items-center gap-2 rounded-md border bg-muted/40 p-2">
+      <span className="min-w-0 flex-1 truncate font-mono text-sm" title={link}>
         {link}
       </span>
-      <Button type="button" size="sm" variant="outline" onClick={copy} disabled={!link}>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="shrink-0"
+        onClick={copy}
+        disabled={!link}
+      >
         <CopyIcon aria-hidden />
         Copiar link
       </Button>

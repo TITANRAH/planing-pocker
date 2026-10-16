@@ -50,3 +50,4 @@ export type Role = z.infer<typeof roleSchema>;
 export type CreateRoomInput = z.infer<typeof createRoomInput>;
 export type JoinRoomInput = z.infer<typeof joinRoomInput>;
 export type PresencePayload = z.infer<typeof presencePayloadSchema>;
+export type ByePayload = z.infer<typeof byePayloadSchema>;
