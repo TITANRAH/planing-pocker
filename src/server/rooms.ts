@@ -33,3 +33,19 @@ export async function markDisconnected(input: unknown) {
 export async function getRoomState(roomId: unknown) {
   return service.getRoomState(roomId, await requestDeps());
 }
+
+export async function newTask(input: unknown) {
+  return service.newTask(input, await requestDeps());
+}
+
+export async function editTask(input: unknown) {
+  return service.editTask(input, await requestDeps());
+}
+
+export async function castVote(input: unknown) {
+  return service.castVote(input, await requestDeps());
+}
+
+export async function clearVote(input: unknown) {
+  return service.clearVote(input, await requestDeps());
+}

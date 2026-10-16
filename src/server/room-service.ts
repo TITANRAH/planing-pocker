@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { generateRoomId } from "@/lib/domain/room-id";
-import { byePayload } from "@/lib/realtime/outgoing";
+import { byePayload, taskEventPayload, voteEventPayload } from "@/lib/realtime/outgoing";
 import {
   canJoin,
   isActive,
@@ -15,6 +15,15 @@ import {
   type Role,
   roomIdSchema,
 } from "@/lib/schemas/room";
+import {
+  type Card,
+  cardSchema,
+  castVoteInput,
+  clearVoteInput,
+  editTaskInput,
+  newTaskInput,
+  type TaskView,
+} from "@/lib/schemas/voting";
 import { db } from "@/server/db";
 import { broadcastToRoom } from "@/server/realtime-broadcast";
 import { type CookieJar, readSessionToken, writeSessionToken } from "@/server/session";
@@ -24,7 +33,14 @@ import { generateToken, hashToken } from "@/server/token";
 // probarla sin una petición HTTP; src/server/rooms.ts la expone como Server Actions.
 
 export type ActionError =
-  "VALIDATION" | "ROOM_NOT_FOUND" | "ROOM_FULL" | "NICKNAME_TAKEN" | "NOT_A_PARTICIPANT";
+  | "VALIDATION"
+  | "ROOM_NOT_FOUND"
+  | "ROOM_FULL"
+  | "NICKNAME_TAKEN"
+  | "NOT_A_PARTICIPANT"
+  | "NOT_MODERATOR"
+  | "VOTES_PRESENT"
+  | "ROUND_CLOSED";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ActionError };
 
@@ -144,6 +160,38 @@ export async function joinRoom(
 
 export type SessionView = { participantId: string; nickname: string; role: Role };
 
+type Reactivated = { view: SessionView; clearedRoundId: string | null };
+
+function findOpenRound(tx: Tx, roomId: string) {
+  return tx.round.findFirst({
+    where: { roomId, status: "OPEN" },
+    include: { task: true, votes: { select: { participantId: true, card: true } } },
+  });
+}
+
+async function resumeWith(
+  roomId: string,
+  jar: CookieJar,
+  action: (tx: Tx, room: LockedRoom, me: RoomParticipant) => Promise<ActionResult<Reactivated>>,
+  onStranger?: (room: LockedRoom) => ActionError,
+): Promise<ActionResult<SessionView>> {
+  const result = await withSelf(roomId, jar, action, onStranger);
+  if (!result.ok) return result;
+  const { view, clearedRoundId } = result.data;
+  if (clearedRoundId) {
+    await broadcastToRoom(
+      roomId,
+      "vote",
+      voteEventPayload({
+        roundId: clearedRoundId,
+        participantId: view.participantId,
+        voted: false,
+      }),
+    );
+  }
+  return { ok: true, data: view };
+}
+
 type LockedRoom = NonNullable<Awaited<ReturnType<typeof lockRoom>>>;
 type RoomParticipant = LockedRoom["participants"][number];
 
@@ -162,7 +210,8 @@ async function reactivate(
   me: RoomParticipant,
   nickname: string,
   now: Date,
-): Promise<ActionResult<SessionView>> {
+): Promise<ActionResult<Reactivated>> {
+  const wasActive = isActive(me, now);
   const others = room.participants.filter((p) => p.id !== me.id);
   if (!isActive(me, now) && !canJoin(others, now)) return fail("ROOM_FULL");
   if (!isNicknameAvailable(room.participants, nickname, now, me.id)) return fail("NICKNAME_TAKEN");
@@ -173,9 +222,23 @@ async function reactivate(
     where: { id: me.id },
     data: { nickname, nicknameKey, lastSeenAt: now, disconnectedAt: null },
   });
+  // Quien vuelve tras ser retirado de la sala pierde su voto de la ronda abierta (RF-11 de la 002)
+  let clearedRoundId: string | null = null;
+  if (!wasActive) {
+    const round = await findOpenRound(tx, room.id);
+    if (round) {
+      const { count } = await tx.vote.deleteMany({
+        where: { roundId: round.id, participantId: me.id },
+      });
+      if (count > 0) clearedRoundId = round.id;
+    }
+  }
   return {
     ok: true,
-    data: { participantId: updated.id, nickname: updated.nickname, role: updated.role },
+    data: {
+      view: { participantId: updated.id, nickname: updated.nickname, role: updated.role },
+      clearedRoundId,
+    },
   };
 }
 
@@ -206,7 +269,7 @@ export async function resumeSession(
 ): Promise<ActionResult<SessionView>> {
   const parsed = roomIdSchema.safeParse(roomIdInput);
   if (!parsed.success) return fail("VALIDATION");
-  return withSelf(
+  return resumeWith(
     parsed.data,
     jar,
     (tx, room, me) => reactivate(tx, room, me, me.nickname, now),
@@ -222,7 +285,7 @@ export async function renameAndResume(
   const parsed = joinRoomInput.safeParse(input);
   if (!parsed.success) return fail("VALIDATION");
   const { roomId, nickname } = parsed.data;
-  return withSelf(roomId, jar, (tx, room, me) => reactivate(tx, room, me, nickname, now));
+  return resumeWith(roomId, jar, (tx, room, me) => reactivate(tx, room, me, nickname, now));
 }
 
 // Las acciones de una sesión en curso exigen que quien llama siga activo; si expiró, debe volver
@@ -281,6 +344,11 @@ export type RoomState = {
   room: { id: string; name: string };
   me: string;
   participants: ParticipantView[];
+  // Votación (spec 002). Nunca incluye las cartas de los demás (Art. VI)
+  task: TaskView | null;
+  round: { id: string } | null;
+  voted: string[];
+  myVote: Card | null;
 };
 
 export async function getRoomState(
@@ -289,22 +357,35 @@ export async function getRoomState(
 ): Promise<ActionResult<RoomState>> {
   const parsed = roomIdSchema.safeParse(roomIdInput);
   if (!parsed.success) return fail("VALIDATION");
-  return withActiveSelf(parsed.data, jar, now, async (_tx, room, me) => ({
-    ok: true,
-    data: {
-      room: { id: room.id, name: room.name },
-      me: me.id,
-      // Nunca se exponen tokens ni hashes
-      participants: room.participants
-        .filter((p) => isActive(p, now))
-        .map((p) => ({
+  return withActiveSelf(parsed.data, jar, now, async (tx, room, me) => {
+    const active = room.participants.filter((p) => isActive(p, now));
+    const activeIds = new Set(active.map((p) => p.id));
+    const round = await findOpenRound(tx, room.id);
+    const myCard = round?.votes.find((v) => v.participantId === me.id)?.card;
+    return {
+      ok: true,
+      data: {
+        room: { id: room.id, name: room.name },
+        me: me.id,
+        // Nunca se exponen tokens ni hashes
+        participants: active.map((p) => ({
           id: p.id,
           nickname: p.nickname,
           role: p.role,
           disconnectedAt: p.disconnectedAt,
         })),
-    },
-  }));
+        task: round
+          ? { id: round.task.id, title: round.task.title, detail: round.task.detail }
+          : null,
+        round: round ? { id: round.id } : null,
+        voted: round
+          ? round.votes.map((v) => v.participantId).filter((id) => activeIds.has(id))
+          : [],
+        // Solo la carta propia; las demás no salen del servidor
+        myVote: myCard ? cardSchema.parse(myCard) : null,
+      },
+    };
+  });
 }
 
 // Quien cierra la pestaña avisa con un beacon (RF-10): se avisa al canal por broadcast, porque su
@@ -332,4 +413,123 @@ export async function sayBye(
     }),
   ]);
   return { ok: true, data: null };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Votación (spec 002). El servidor es la autoridad: comprueba el rol y la ronda en cada acción
+// (Art. VI.3) y nunca devuelve las cartas de los demás (Art. VI.1-2).
+
+export type TaskResult = { roundId: string; task: TaskView };
+
+const taskView = (task: { id: string; title: string; detail: string | null }): TaskView => ({
+  id: task.id,
+  title: task.title,
+  detail: task.detail,
+});
+
+// RF-01 y RF-08: carga una tarea nueva y abre su ronda; si había una ronda abierta, la cierra y
+// descarta sus votos (con confirmación previa si había votos)
+export async function newTask(
+  input: unknown,
+  { jar, now }: Deps,
+): Promise<ActionResult<TaskResult>> {
+  const parsed = newTaskInput.safeParse(input);
+  if (!parsed.success) return fail("VALIDATION");
+  const { roomId, title, detail, discardVotes } = parsed.data;
+  return announceTask(
+    roomId,
+    await withActiveSelf(roomId, jar, now, async (tx, _room, me) => {
+      if (me.role !== "MODERATOR") return fail("NOT_MODERATOR");
+      const open = await findOpenRound(tx, roomId);
+      if (open && open.votes.length > 0 && !discardVotes) return fail("VOTES_PRESENT");
+      if (open) {
+        await tx.vote.deleteMany({ where: { roundId: open.id } });
+        await tx.round.update({
+          where: { id: open.id },
+          data: { status: "CLOSED", closedAt: now },
+        });
+      }
+      const task = await tx.task.create({ data: { roomId, title, detail } });
+      const round = await tx.round.create({ data: { roomId, taskId: task.id, openedAt: now } });
+      return { ok: true, data: { roundId: round.id, task: taskView(task) } };
+    }),
+  );
+}
+
+// RF-13: corrige el título o el detalle de la tarea actual sin tocar la ronda ni los votos
+export async function editTask(
+  input: unknown,
+  { jar, now }: Deps,
+): Promise<ActionResult<TaskResult>> {
+  const parsed = editTaskInput.safeParse(input);
+  if (!parsed.success) return fail("VALIDATION");
+  const { roomId, taskId, title, detail } = parsed.data;
+  return announceTask(
+    roomId,
+    await withActiveSelf(roomId, jar, now, async (tx, _room, me) => {
+      if (me.role !== "MODERATOR") return fail("NOT_MODERATOR");
+      const open = await findOpenRound(tx, roomId);
+      if (!open || open.taskId !== taskId) return fail("ROUND_CLOSED");
+      const task = await tx.task.update({ where: { id: taskId }, data: { title, detail } });
+      return { ok: true, data: { roundId: open.id, task: taskView(task) } };
+    }),
+  );
+}
+
+// RF-03, RF-04, RF-09, RF-12: vota o cambia la carta en la ronda abierta
+export async function castVote(input: unknown, { jar, now }: Deps): Promise<ActionResult<null>> {
+  const parsed = castVoteInput.safeParse(input);
+  if (!parsed.success) return fail("VALIDATION");
+  const { roomId, roundId, card } = parsed.data;
+  const result = await withActiveSelf(roomId, jar, now, async (tx, _room, me) => {
+    const open = await findOpenRound(tx, roomId);
+    if (!open || open.id !== roundId) return fail("ROUND_CLOSED");
+    const isFirstVote = !open.votes.some((v) => v.participantId === me.id);
+    await tx.vote.upsert({
+      where: { roundId_participantId: { roundId, participantId: me.id } },
+      create: { roundId, participantId: me.id, card },
+      update: { card },
+    });
+    return { ok: true, data: { participantId: me.id, isFirstVote } };
+  });
+  if (!result.ok) return result;
+  // Cambiar de carta no cambia "ya votó": solo se avisa del primer voto
+  if (result.data.isFirstVote) {
+    await announceVote(roomId, roundId, result.data.participantId, true);
+  }
+  return { ok: true, data: null };
+}
+
+// RF-04: quita el voto propio de la ronda abierta
+export async function clearVote(input: unknown, { jar, now }: Deps): Promise<ActionResult<null>> {
+  const parsed = clearVoteInput.safeParse(input);
+  if (!parsed.success) return fail("VALIDATION");
+  const { roomId, roundId } = parsed.data;
+  const result = await withActiveSelf(roomId, jar, now, async (tx, _room, me) => {
+    const open = await findOpenRound(tx, roomId);
+    if (!open || open.id !== roundId) return fail("ROUND_CLOSED");
+    const { count } = await tx.vote.deleteMany({ where: { roundId, participantId: me.id } });
+    return { ok: true, data: { participantId: me.id, removed: count > 0 } };
+  });
+  if (!result.ok) return result;
+  if (result.data.removed) await announceVote(roomId, roundId, result.data.participantId, false);
+  return { ok: true, data: null };
+}
+
+// Avisos por broadcast tras confirmar la transacción (plan 002, §4)
+async function announceTask(
+  roomId: string,
+  result: ActionResult<TaskResult>,
+): Promise<ActionResult<TaskResult>> {
+  if (result.ok) await broadcastToRoom(roomId, "task", taskEventPayload(result.data));
+  return result;
+}
+
+async function announceVote(
+  roomId: string,
+  roundId: string,
+  participantId: string,
+  voted: boolean,
+) {
+  await broadcastToRoom(roomId, "vote", voteEventPayload({ roundId, participantId, voted }));
 }

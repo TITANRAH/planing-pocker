@@ -7,6 +7,9 @@ const STATUS: Record<ActionError, number> = {
   ROOM_NOT_FOUND: 404,
   ROOM_FULL: 409,
   NICKNAME_TAKEN: 409,
+  NOT_MODERATOR: 403,
+  VOTES_PRESENT: 409,
+  ROUND_CLOSED: 409,
 };
 
 // Recibe el beacon que envía el navegador al cerrar la pestaña o salir de la sala (RF-10)

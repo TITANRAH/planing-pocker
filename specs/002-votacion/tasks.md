@@ -34,33 +34,33 @@
   - **Hecho cuando:** las pruebas pasan
 
 ## Fase 3 — Servidor
-- [ ] **T005** `newTask`
+- [x] **T005** `newTask`
   - **RF:** RF-01, RF-08, RF-12, RF-14
   - **Archivos:** `src/server/room-service.ts`, `src/server/rooms.ts`, `tests/integration/server/voting.test.ts`
   - **Prueba primero:** el moderador crea tarea y ronda abierta; con votos y `discardVotes=false`
     → `VOTES_PRESENT`; con `true` cierra la ronda, borra sus votos y abre otra; un jugador →
     `NOT_MODERATOR`; un moderador expirado → `NOT_A_PARTICIPANT`; título inválido → `VALIDATION`
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T006** `editTask`
+- [x] **T006** `editTask`
   - **RF:** RF-12, RF-13
   - **Archivos:** igual que T005
   - **Prueba primero:** corrige título y detalle sin tocar ronda ni votos; un jugador →
     `NOT_MODERATOR`; `taskId` que no es el de la ronda abierta → `ROUND_CLOSED`
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T007** `castVote` y `clearVote`
+- [x] **T007** `castVote` y `clearVote`
   - **RF:** RF-03, RF-04, RF-09, RF-12
   - **Archivos:** igual que T005
   - **Prueba primero:** vota, cambia la carta (sigue habiendo un solo voto) y lo quita; "4" →
     `VALIDATION`; sin ronda o con `roundId` viejo → `ROUND_CLOSED`; sin sesión → `NOT_A_PARTICIPANT`
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T008** `getRoomState` ampliado y votos de quien expira
+- [x] **T008** `getRoomState` ampliado y votos de quien expira
   - **RF:** RF-05, RF-07, RF-10, RF-11
   - **Archivos:** `src/server/room-service.ts`, `tests/integration/server/voting.test.ts`
   - **Prueba primero:** devuelve tarea, ronda, `voted` y `myVote` solo de quien llama; el estado
     de Beto **no contiene** la carta de Ana; `voted` omite a los expirados; al volver tras
     expirar (`resumeSession`), su voto de la ronda abierta se borra
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T009** Broadcast `task` y `vote` desde el servidor
+- [x] **T009** Broadcast `task` y `vote` desde el servidor
   - **RF:** RF-02, RF-05, RF-06
   - **Archivos:** `src/server/room-service.ts`, `src/lib/realtime/outgoing.ts`, `tests/integration/server/voting.test.ts`
   - **Prueba primero:** un oyente del canal recibe `task` al crear o editar y `vote` al votar o
