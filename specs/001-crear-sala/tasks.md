@@ -56,22 +56,22 @@
   - **Hecho cuando:** las pruebas pasan
 
 ## Fase 3 — Servidor
-- [ ] **T011** `createRoom`
+- [x] **T011** `createRoom`
   - **RF:** RF-01
   - **Archivos:** `src/server/rooms.ts`, `src/server/session.ts` (cookie), `tests/integration/server/rooms.test.ts`
   - **Prueba primero:** crea sala + moderador, pone la cookie y rechaza entradas inválidas con `VALIDATION`
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T012** `joinRoom`
+- [x] **T012** `joinRoom`
   - **RF:** RF-04, RF-05, RF-06, RF-07
   - **Archivos:** `src/server/rooms.ts`, `tests/integration/server/rooms.test.ts`
   - **Prueba primero:** entra como jugador; `NICKNAME_TAKEN` (también sin distinguir mayúsculas y con apodo reservado); `ROOM_FULL` a 15; plaza libre tras expirar; `ROOM_NOT_FOUND`
   - **Hecho cuando:** las pruebas pasan, incluida una prueba de dos `joinRoom` simultáneos con el mismo apodo
-- [ ] **T013** `resumeSession` y `renameAndResume`
+- [x] **T013** `resumeSession` y `renameAndResume`
   - **RF:** RF-09, RF-11
   - **Archivos:** `src/server/rooms.ts`, `tests/integration/server/rooms.test.ts`
   - **Prueba primero:** reanuda una sesión activa; si expiró, vuelve con el mismo apodo y rol; con el apodo ocupado → `NICKNAME_TAKEN` y renombrar conserva el rol; sala llena → `ROOM_FULL`; el moderador conserva su rol
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T014** `heartbeat`, `markDisconnected` y `getRoomState`
+- [x] **T014** `heartbeat`, `markDisconnected` y `getRoomState`
   - **RF:** RF-08, RF-10, RF-11
   - **Archivos:** `src/server/rooms.ts`, `tests/integration/server/rooms.test.ts`
   - **Prueba primero:** el heartbeat limpia `disconnectedAt`; `markDisconnected` solo lo puede llamar un participante de la sala y no pisa una marca existente; `getRoomState` no expone tokens ni hashes y omite a los expirados

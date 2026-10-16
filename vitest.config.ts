@@ -15,6 +15,11 @@ export default defineConfig({
   test: {
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
     environment: "node",
+    // La BD de pruebas está en Supabase (remota): cada consulta es un viaje de red
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
+    // Cada prueba crea su propia sala, así que pueden ir en paralelo dentro de un archivo
+    sequence: { concurrent: true },
     // Carga .env.local para las pruebas de integración contra Supabase dev
     env: { ...env, TEST_RUN_ID },
     globalSetup: ["tests/helpers/global-teardown.ts"],

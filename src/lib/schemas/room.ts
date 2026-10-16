@@ -30,6 +30,11 @@ export const joinRoomInput = z.object({
   nickname: nicknameSchema,
 });
 
+export const markDisconnectedInput = z.object({
+  roomId: roomIdSchema,
+  participantId: z.string().min(1),
+});
+
 export const presencePayloadSchema = z.object({
   participantId: z.string().min(1),
   nickname: nicknameSchema,
