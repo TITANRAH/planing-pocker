@@ -18,13 +18,13 @@
   - **Hecho cuando:** los componentes compilan
 
 ## Fase 2 — Dominio
-- [ ] **T003** [P] Esquemas Zod de votación
+- [x] **T003** [P] Esquemas Zod de votación
   - **RF:** RF-01, RF-03, RF-05, RF-12, RF-13
   - **Archivos:** `src/lib/schemas/voting.ts`, `tests/unit/schemas/voting.test.ts`
   - **Prueba primero:** baraja exacta (rechaza "4", "", "100"); título 3–100 y detalle ≤ 300 con
     recorte; detalle vacío → null; `voteEventSchema` **rechaza un campo `card`** (estricto)
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T004** [P] Reducer de votación (cliente)
+- [x] **T004** [P] Reducer de votación (cliente)
   - **RF:** RF-06, RF-08, RF-11, RF-13
   - **Archivos:** `src/lib/realtime/voting.ts`, `tests/unit/realtime/voting.test.ts`
   - **Prueba primero:** un estado completo inicializa tarea, ronda, `voted` y `myVote`; un evento
