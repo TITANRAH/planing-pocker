@@ -310,7 +310,10 @@ describe("getRoomState con votación", () => {
     if (!state.ok) throw new Error(state.error);
     expect(state.data.voted).toEqual([r.ana.id]);
     expect(state.data.myVote).toBeNull();
-    expect(JSON.stringify(state.data)).not.toContain("13");
+    // Como valor JSON exacto: los ids aleatorios pueden contener "13" por casualidad
+    const raw = JSON.stringify(state.data);
+    expect(raw).not.toMatch(/"13"/);
+    expect(raw).not.toContain('"card"');
   });
 
   it("RF-09: sin tarea, el estado no tiene ronda", async () => {
@@ -449,7 +452,7 @@ describe("broadcast task y vote", () => {
       ]);
       const raw = JSON.stringify(listener.messages);
       expect(raw).not.toContain("card");
-      expect(raw).not.toContain("21");
+      expect(raw).not.toMatch(/"21"/); // valor exacto: los ids aleatorios pueden contener "21"
       expect(raw).not.toContain("☕");
     } finally {
       await listener.close();

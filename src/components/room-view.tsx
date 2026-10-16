@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { ParticipantList } from "@/components/participant-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRoomChannel } from "@/lib/realtime/use-room-channel";
 import { useRoomPresence } from "@/lib/realtime/use-room-presence";
 import type { PresencePayload } from "@/lib/schemas/room";
 import type { RoomState } from "@/server/room-service";
@@ -22,7 +23,9 @@ export function RoomView({ state, onExpired }: Props) {
     return { participantId: self.id, nickname: self.nickname, role: self.role };
   }, [state]);
 
+  const channel = useRoomChannel(state.room.id, me.participantId);
   const participants = useRoomPresence({
+    channel,
     roomId: state.room.id,
     me,
     initialParticipants: state.participants,

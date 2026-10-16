@@ -10,8 +10,8 @@ import {
   presenceReducer,
   type PresenceEntry,
 } from "@/lib/realtime/presence";
+import type { RoomChannel } from "@/lib/realtime/use-room-channel";
 import type { PresencePayload } from "@/lib/schemas/room";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { heartbeat, markDisconnected } from "@/server/rooms";
 
 // Cada cliente se vuelve a anunciar y envía su latido al servidor cada 15 s (plan, §1 y §4)
@@ -19,6 +19,7 @@ const ANNOUNCE_INTERVAL_MS = 15 * 1000;
 const TICK_INTERVAL_MS = 1000;
 
 type Options = {
+  channel: RoomChannel;
   roomId: string;
   me: PresencePayload;
   initialParticipants: readonly InitialParticipant[];
@@ -27,6 +28,7 @@ type Options = {
 };
 
 export function useRoomPresence({
+  channel,
   roomId,
   me,
   initialParticipants,
@@ -50,17 +52,12 @@ export function useRoomPresence({
   }, [onExpired]);
 
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    const channel = supabase.channel(`room:${roomId}`, {
-      config: { presence: { key: me.participantId }, broadcast: { self: false } },
-    });
-
     // La presence se replica entre servidores de Realtime por lotes (~2 s); el broadcast llega al
-    // momento, así que adelanta los avisos de entrada y de salida (plan v1.2/v1.3, RF-08/RF-10)
+    // momento, así que adelanta los avisos de entrada y de salida (plan 001 v1.2/v1.3, RF-08/RF-10)
     const hello = helloPayload(me);
     const announce = () => {
-      void channel.track(hello);
-      void channel.send({ type: "broadcast", event: "hello", payload: hello });
+      channel.track(hello);
+      channel.send("hello", hello);
     };
     // Al cerrar la pestaña el WebSocket se corta: el aviso va por beacon y lo emite el servidor
     const sayBye = () => {
@@ -74,23 +71,17 @@ export function useRoomPresence({
       }
     };
 
-    channel
-      .on("presence", { event: "sync" }, () => {
-        const payloads = Object.values(channel.presenceState()).flat();
-        dispatch({ type: "sync", payloads, now: Date.now() });
-      })
-      .on("presence", { event: "join" }, ({ newPresences }) => {
-        for (const payload of newPresences) dispatch({ type: "seen", payload, now: Date.now() });
-      })
-      .on("broadcast", { event: "hello" }, ({ payload }) => {
-        dispatch({ type: "seen", payload, now: Date.now() });
-      })
-      .on("broadcast", { event: "bye" }, ({ payload }) => {
-        dispatch({ type: "bye", payload, now: Date.now() });
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") announce();
-      });
+    const unsubscribe = [
+      channel.on("presence-sync", (payloads) =>
+        dispatch({ type: "sync", payloads, now: Date.now() }),
+      ),
+      channel.on("presence-join", (payloads) => {
+        for (const payload of payloads) dispatch({ type: "seen", payload, now: Date.now() });
+      }),
+      channel.on("hello", (payload) => dispatch({ type: "seen", payload, now: Date.now() })),
+      channel.on("bye", (payload) => dispatch({ type: "bye", payload, now: Date.now() })),
+      channel.on("subscribed", announce),
+    ];
 
     const announceTimer = setInterval(() => {
       announce();
@@ -103,13 +94,13 @@ export function useRoomPresence({
     window.addEventListener("pageshow", onPageShow);
 
     return () => {
+      for (const off of unsubscribe) off();
       window.removeEventListener("pagehide", sayBye);
       window.removeEventListener("pageshow", onPageShow);
       clearInterval(announceTimer);
       clearInterval(tick);
-      void supabase.removeChannel(channel);
     };
-  }, [roomId, me]);
+  }, [channel, roomId, me]);
 
   return listParticipants(state);
 }

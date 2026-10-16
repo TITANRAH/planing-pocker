@@ -69,12 +69,12 @@
   - **Hecho cuando:** las pruebas pasan
 
 ## Fase 4 — Tiempo real
-- [ ] **T010** Reorganizar `useRoomPresence` en `useRoomChannel`
+- [x] **T010** Reorganizar `useRoomPresence` en `useRoomChannel`
   - **RF:** RF-08, RF-10 de la spec 001 (no cambia su comportamiento)
   - **Archivos:** `src/lib/realtime/use-room-channel.ts`, `src/lib/realtime/use-room-presence.ts`, `src/components/room-view.tsx`
   - **Prueba primero:** las e2e de presence de la 001 son la red de seguridad: deben seguir en verde
   - **Hecho cuando:** las e2e de la 001 pasan sin cambios
-- [ ] **T011** Hook `useRoomVoting`
+- [x] **T011** Hook `useRoomVoting`
   - **RF:** RF-02, RF-06, RF-08, RF-13
   - **Archivos:** `src/lib/realtime/use-room-voting.ts`
   - **Prueba primero:** se cubre con el reducer de T004 y los e2e de la fase 5
