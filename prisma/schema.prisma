@@ -12,11 +12,18 @@ enum Role {
   PLAYER
 }
 
+enum RoundStatus {
+  OPEN
+  CLOSED
+}
+
 model Room {
   id           String        @id // 12 caracteres aleatorios base64url (RF-03)
   name         String
   createdAt    DateTime      @default(now())
   participants Participant[]
+  tasks        Task[]
+  rounds       Round[]
 }
 
 model Participant {
@@ -30,7 +37,47 @@ model Participant {
   lastSeenAt     DateTime  @default(now()) // último latido
   disconnectedAt DateTime? // cuándo se lo vio desconectado; null = conectado
   createdAt      DateTime  @default(now())
+  votes          Vote[]
 
   @@unique([roomId, nicknameKey])
   @@index([roomId])
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  title     String
+  detail    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rounds    Round[]
+
+  @@index([roomId])
+}
+
+model Round {
+  id       String      @id @default(cuid())
+  roomId   String
+  room     Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  taskId   String
+  task     Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  status   RoundStatus @default(OPEN)
+  openedAt DateTime    @default(now())
+  closedAt DateTime?
+  votes    Vote[]
+
+  @@index([roomId, status])
+}
+
+model Vote {
+  id            String      @id @default(cuid())
+  roundId       String
+  round         Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  card          String // validado con cardSchema ("?" y "☕" no son identificadores de enum válidos)
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([roundId, participantId])
 }

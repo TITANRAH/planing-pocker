@@ -5,13 +5,13 @@
 - **Estado:** Aprobado (2026-10-16)
 
 ## Fase 1 — Preparación
-- [ ] **T001** Prisma: modelos Task, Round y Vote + migración `voting`
+- [x] **T001** Prisma: modelos Task, Round y Vote + migración `voting`
   - **RF:** — (base de RF-01…RF-14)
   - **Archivos:** `prisma/schema.prisma`, `prisma/migrations/*`, `tests/integration/voting-db.test.ts`
   - **Prueba primero:** crea tarea → ronda → voto; un segundo voto del mismo participante en la
     misma ronda falla por `@@unique`; borrar la sala borra todo en cascada
   - **Hecho cuando:** la migración se aplica en Supabase dev y la prueba pasa
-- [ ] **T002** shadcn/ui: añadir `textarea` y `alert-dialog`
+- [x] **T002** shadcn/ui: añadir `textarea` y `alert-dialog`
   - **RF:** —
   - **Archivos:** `src/components/ui/*`
   - **Prueba primero:** no aplica; se verifica con lint y typecheck
