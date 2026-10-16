@@ -41,6 +41,11 @@ export const presencePayloadSchema = z.object({
   role: roleSchema,
 });
 
+// Aviso de despedida por broadcast al cerrar la pestaña (RF-10)
+export const byePayloadSchema = z.object({
+  participantId: z.string().min(1),
+});
+
 export type Role = z.infer<typeof roleSchema>;
 export type CreateRoomInput = z.infer<typeof createRoomInput>;
 export type JoinRoomInput = z.infer<typeof joinRoomInput>;

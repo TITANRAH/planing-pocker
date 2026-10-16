@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  byePayloadSchema,
   createRoomInput,
   joinRoomInput,
   nicknameSchema,
@@ -95,5 +96,13 @@ describe("presencePayloadSchema", () => {
       presencePayloadSchema.safeParse({ participantId: "", nickname: "Ana", role: "PLAYER" })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("byePayloadSchema", () => {
+  it("RF-10: exige un participantId no vacío", () => {
+    expect(byePayloadSchema.safeParse({ participantId: "p1" }).success).toBe(true);
+    expect(byePayloadSchema.safeParse({ participantId: "" }).success).toBe(false);
+    expect(byePayloadSchema.safeParse({}).success).toBe(false);
   });
 });

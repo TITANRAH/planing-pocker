@@ -18,10 +18,14 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // Por defecto contra el build de producción: los límites de tiempo de la spec (RF-08/RF-10) se
+  // miden como en Vercel, sin la compilación bajo demanda del modo desarrollo. E2E_DEV=1 usa `next dev`.
   webServer: {
-    command: `pnpm dev --port ${PORT}`,
+    command: process.env.E2E_DEV
+      ? `pnpm dev --port ${PORT}`
+      : `pnpm build && pnpm start --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 240_000,
   },
 });

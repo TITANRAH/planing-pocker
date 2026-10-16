@@ -74,7 +74,7 @@ App **Next.js full-stack** (App Router) desplegada en Vercel.
 |---|---|
 | Servidor de desarrollo | `pnpm dev` |
 | Pruebas unitarias | `pnpm test` |
-| Pruebas e2e | `pnpm test:e2e` |
+| Pruebas e2e | `pnpm test:e2e` (build de producción; `E2E_DEV=1 pnpm test:e2e` usa `next dev`) |
 | Lint y formato | `pnpm lint` · `pnpm format` |
 | Chequeo de tipos | `pnpm typecheck` (`next typegen` + `tsc --noEmit`) |
 | Crear/aplicar migración | `pnpm prisma migrate dev` |

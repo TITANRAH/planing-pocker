@@ -1,22 +1,10 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { requestDeps } from "@/server/request-deps";
 import * as service from "@/server/room-service";
-import type { CookieJar } from "@/server/session";
 
 // Server Actions de la sala: conectan la lógica de room-service con las cookies de la petición.
 // Toda la validación (Zod) y los permisos viven en room-service.
-
-async function requestDeps(): Promise<service.Deps> {
-  const store = await cookies();
-  const jar: CookieJar = {
-    get: (name) => store.get(name)?.value,
-    set: (name, value, options) => {
-      store.set(name, value, options);
-    },
-  };
-  return { jar, now: new Date() };
-}
 
 export async function createRoom(input: unknown) {
   return service.createRoom(input, await requestDeps());

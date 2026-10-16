@@ -1,5 +1,10 @@
 import { DISCONNECT_GRACE_MS } from "@/lib/domain/room";
-import { type PresencePayload, presencePayloadSchema, type Role } from "@/lib/schemas/room";
+import {
+  byePayloadSchema,
+  type PresencePayload,
+  presencePayloadSchema,
+  type Role,
+} from "@/lib/schemas/room";
 
 // Estado de la lista de participantes en el cliente (RF-08, RF-10). Reducer puro: los tiempos
 // llegan en cada evento como milisegundos, para poder probarlo sin relojes reales.
@@ -16,9 +21,12 @@ export type PresenceEntry = {
   lastSeenAt: number;
   disconnectedAt: number | null;
   removeAt: number | null;
-  // "left": dejó de aparecer en la presence; "silent": dejó de anunciarse (red caída)
-  disconnectReason: "left" | "silent" | null;
+  // "left": dejó de aparecer en la presence; "bye": avisó que se iba; "silent": dejó de
+  // anunciarse (red caída). Solo "left" se revierte con un sync; los otros, con un anuncio real.
+  disconnectReason: DisconnectReason | null;
 };
+
+type DisconnectReason = "left" | "bye" | "silent";
 
 export type PresenceState = {
   order: readonly string[];
@@ -37,6 +45,8 @@ export type PresenceEvent =
   | { type: "sync"; payloads: readonly unknown[]; now: number }
   // Alguien se anunció (al entrar o en su latido)
   | { type: "seen"; payload: unknown; now: number }
+  // Alguien avisó que se va (broadcast `bye` al cerrar la pestaña)
+  | { type: "bye"; payload: unknown; now: number }
   // Paso del tiempo: detecta silencios y retira a los expirados
   | { type: "tick"; now: number };
 
@@ -86,7 +96,7 @@ function markSeen(state: PresenceState, payload: PresencePayload, now: number): 
 function markDisconnected(
   entry: PresenceEntry,
   now: number,
-  reason: "left" | "silent",
+  reason: DisconnectReason,
 ): PresenceEntry {
   return {
     ...entry,
@@ -121,6 +131,15 @@ export function presenceReducer(state: PresenceState, event: PresenceEvent): Pre
     case "seen": {
       const parsed = presencePayloadSchema.safeParse(event.payload);
       return parsed.success ? markSeen(state, parsed.data, event.now) : state;
+    }
+    case "bye": {
+      const parsed = byePayloadSchema.safeParse(event.payload);
+      const entry = parsed.success ? state.byId[parsed.data.participantId] : undefined;
+      if (!entry || !entry.connected) return state;
+      return {
+        ...state,
+        byId: { ...state.byId, [entry.id]: markDisconnected(entry, event.now, "bye") },
+      };
     }
     case "tick": {
       let changed = false;

@@ -51,8 +51,26 @@ export function useRoomPresence({
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     const channel = supabase.channel(`room:${roomId}`, {
-      config: { presence: { key: me.participantId } },
+      config: { presence: { key: me.participantId }, broadcast: { self: false } },
     });
+
+    // La presence se replica entre servidores de Realtime por lotes (~2 s); el broadcast llega al
+    // momento, así que adelanta los avisos de entrada y de salida (plan v1.2/v1.3, RF-08/RF-10)
+    const announce = () => {
+      void channel.track(me);
+      void channel.send({ type: "broadcast", event: "hello", payload: me });
+    };
+    // Al cerrar la pestaña el WebSocket se corta: el aviso va por beacon y lo emite el servidor
+    const sayBye = () => {
+      navigator.sendBeacon(`/api/rooms/${roomId}/bye`);
+    };
+    // La página vuelve de la caché del navegador: anunciarse otra vez
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        announce();
+        void heartbeat(roomId);
+      }
+    };
 
     channel
       .on("presence", { event: "sync" }, () => {
@@ -62,20 +80,30 @@ export function useRoomPresence({
       .on("presence", { event: "join" }, ({ newPresences }) => {
         for (const payload of newPresences) dispatch({ type: "seen", payload, now: Date.now() });
       })
+      .on("broadcast", { event: "hello" }, ({ payload }) => {
+        dispatch({ type: "seen", payload, now: Date.now() });
+      })
+      .on("broadcast", { event: "bye" }, ({ payload }) => {
+        dispatch({ type: "bye", payload, now: Date.now() });
+      })
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") void channel.track(me);
+        if (status === "SUBSCRIBED") announce();
       });
 
-    const announce = setInterval(() => {
-      void channel.track(me);
+    const announceTimer = setInterval(() => {
+      announce();
       void heartbeat(roomId).then((result) => {
         if (!result.ok && result.error === "NOT_A_PARTICIPANT") onExpiredRef.current();
       });
     }, ANNOUNCE_INTERVAL_MS);
     const tick = setInterval(() => dispatch({ type: "tick", now: Date.now() }), TICK_INTERVAL_MS);
+    window.addEventListener("pagehide", sayBye);
+    window.addEventListener("pageshow", onPageShow);
 
     return () => {
-      clearInterval(announce);
+      window.removeEventListener("pagehide", sayBye);
+      window.removeEventListener("pageshow", onPageShow);
+      clearInterval(announceTimer);
       clearInterval(tick);
       void supabase.removeChannel(channel);
     };

@@ -2,7 +2,7 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16) · cambio v1.1 aprobado (2026-10-16)
+- **Estado:** Aprobado (2026-10-16) · cambios v1.1, v1.2 y v1.3 aprobados (2026-10-16)
 
 ## Fase 1 — Preparación
 - [x] **T001** Montar Next.js (App Router) + TypeScript strict + Tailwind + ESLint + Prettier
@@ -85,29 +85,29 @@
   - **Hecho cuando:** las pruebas del reducer pasan y el hook compila sin `any`
 
 ## Fase 5 — UI
-- [ ] **T016** Página de inicio con `CreateRoomForm`
+- [x] **T016** Página de inicio con `CreateRoomForm`
   - **RF:** RF-01
   - **Archivos:** `src/app/page.tsx`, `src/components/create-room-form.tsx`, `tests/e2e/create-room.spec.ts`
   - **Prueba primero:** e2e de crear sala → redirige a `/r/<id>` y aparece como moderador; errores de validación en los campos
   - **Hecho cuando:** el e2e pasa
-- [ ] **T017** Página de sala: no existe, sala llena y `JoinRoomForm`
+- [x] **T017** Página de sala: no existe, sala llena y `JoinRoomForm`
   - **RF:** RF-04, RF-06, RF-07
   - **Archivos:** `src/app/r/[roomId]/page.tsx`, `src/components/join-room-form.tsx`, `src/components/room-not-found.tsx`, `src/components/room-full.tsx`, `tests/e2e/join-room.spec.ts`
   - **Prueba primero:** link inexistente → "Esta sala no existe" con botón; entrar con apodo; aviso de apodo en uso
   - **Hecho cuando:** el e2e pasa
-- [ ] **T018** `RoomView` con cabecera y `CopyLinkButton`
+- [x] **T018** `RoomView` con cabecera y `CopyLinkButton`
   - **RF:** RF-02
   - **Archivos:** `src/components/room-view.tsx`, `src/components/copy-link-button.tsx`, `tests/e2e/create-room.spec.ts`
   - **Prueba primero:** e2e que copia el link → el portapapeles contiene la URL y aparece el toast
   - **Hecho cuando:** el e2e pasa
-- [ ] **T019** `ParticipantList` conectada a la presence
+- [x] **T019** `ParticipantList` conectada a la presence
   - **RF:** RF-08, RF-10, RF-11
   - **Archivos:** `src/components/participant-list.tsx`, `src/components/room-view.tsx`
   - **Prueba primero:** se cubre con el e2e de T020 (se escribe primero en esa tarea)
   - **Hecho cuando:** muestra apodo, estado y badge de moderador, y retira a los expirados
 
 ## Fase 6 — E2E
-- [ ] **T020** E2E multijugador de presence
+- [x] **T020** E2E multijugador de presence
   - **RF:** RF-08, RF-09, RF-10, RF-11
   - **Archivos:** `tests/e2e/presence.spec.ts`
   - **Prueba primero:** 2 navegadores: aparece en ≤ 2 s; cerrar la pestaña → desconectado en ≤ 2 s; `setOffline` → desconectado en ≤ 30 s; retirada a los 2 min (reloj simulado); recarga → mismo apodo; el moderador recarga y conserva el rol
@@ -124,9 +124,9 @@
 | RF-05 | T009, T012 |
 | RF-06 | T009, T012, T017 |
 | RF-07 | T012, T017 |
-| RF-08 | T014, T015, T019, T020 |
+| RF-08 | T014, T015, T019, T020, T025 |
 | RF-09 | T010, T013, T020 |
-| RF-10 | T009, T014, T015, T019, T020 |
+| RF-10 | T009, T014, T015, T019, T020, T024, T025, T026, T027, T028 |
 | RF-11 | T013, T014, T019, T020 |
 
 ## Cambio v1.1 — Supabase en la nube y Node 22
@@ -156,3 +156,53 @@ T022 → T001 → T002 → T003 → T004 → T021 → T006 → T023 → T007 …
   - **Prueba primero:** crea una sala `test-<runId>-…`, ejecuta la limpieza y comprueba que la sala
     y sus participantes ya no existen, y que una sala sin el prefijo de esa ejecución **no** se borra
   - **Hecho cuando:** cada ejecución de pruebas usa un `runId` propio y borra solo sus datos al terminar
+
+## Cambio v1.2 — Broadcast hello/bye para cumplir ≤ 2 s
+
+**Orden de ejecución con el cambio:**
+… T018 → T024 → T025 → T019 → T020
+
+- [x] **T024** Reducer: evento `bye` y esquema de su payload
+  - **RF:** RF-10
+  - **Archivos:** `src/lib/schemas/room.ts` (`byePayloadSchema`), `src/lib/realtime/presence.ts`,
+    `tests/unit/realtime/presence.test.ts`, `tests/unit/schemas/room.test.ts`
+  - **Prueba primero:** `bye` marca al participante desconectado en el acto ("left") y programa su
+    retirada a +2 min; un `bye` con payload inválido o de alguien desconocido no cambia el estado;
+    un participante que se despidió vuelve a verse conectado con su siguiente `hello`/`seen`
+  - **Hecho cuando:** las pruebas pasan
+
+- [x] **T025** Hook: enviar y escuchar `hello`/`bye`; conexión de Realtime adelantada
+  - **RF:** RF-08, RF-10
+  - **Archivos:** `src/lib/realtime/use-room-presence.ts`, `src/components/room-client.tsx`
+  - **Prueba primero:** se cubre con el e2e de T020 (`presence.spec.ts`), que ya está escrito y en
+    rojo para "entra ≤ 2 s" y "cierra la pestaña ≤ 2 s"
+  - **Hecho cuando:** el hook envía `hello` al suscribirse y cada 15 s, envía `bye` en `pagehide`,
+    valida con Zod lo que recibe, compila sin `any`, y `room-client.tsx` abre la conexión al cargar
+
+## Cambio v1.3 — bye por sendBeacon
+
+**Orden de ejecución con el cambio:**
+… T024 → T025 → T026 → T027 → T028 → T019 → T020
+
+- [x] **T026** `sayBye` en room-service: marca la desconexión y emite el broadcast `bye`
+  - **RF:** RF-10
+  - **Archivos:** `src/server/room-service.ts`, `src/server/realtime-broadcast.ts`,
+    `tests/integration/server/rooms.test.ts`
+  - **Prueba primero:** un cliente suscrito al canal recibe `bye` con el participantId;
+    `disconnectedAt` queda en `now`; sin cookie o expirado → `NOT_A_PARTICIPANT` y sin broadcast
+  - **Hecho cuando:** las pruebas pasan contra Supabase dev
+
+- [x] **T027** Ruta `POST /api/rooms/[roomId]/bye` y beacon en el hook (+ `pageshow`)
+  - **RF:** RF-10
+  - **Archivos:** `src/app/api/rooms/[roomId]/bye/route.ts`, `src/lib/realtime/use-room-presence.ts`
+  - **Prueba primero:** se cubre con el e2e de T028
+  - **Hecho cuando:** la ruta responde 204 (o 4xx validado) y el hook envía el beacon en `pagehide`
+    y se vuelve a anunciar en `pageshow` persistido
+
+- [x] **T028** Ajustar el e2e de cierre de pestaña para que dispare `pagehide`
+  - **RF:** RF-10
+  - **Archivos:** `tests/e2e/presence.spec.ts`
+  - **Cambio de prueba (aprobado):** en "al cerrar la pestaña…" y "quien lleva 2 minutos…",
+    `beto.close()` pasa a `beto.goto("about:blank")` seguido de `beto.close()`, con un comentario
+    que explica que `page.close()` de Playwright no dispara `pagehide`
+  - **Hecho cuando:** el e2e pasa

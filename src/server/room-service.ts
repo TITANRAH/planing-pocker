@@ -15,6 +15,7 @@ import {
   roomIdSchema,
 } from "@/lib/schemas/room";
 import { db } from "@/server/db";
+import { broadcastToRoom } from "@/server/realtime-broadcast";
 import { type CookieJar, readSessionToken, writeSessionToken } from "@/server/session";
 import { generateToken, hashToken } from "@/server/token";
 
@@ -181,13 +182,15 @@ async function withSelf<T>(
   roomId: string,
   jar: CookieJar,
   action: (tx: Tx, room: LockedRoom, me: RoomParticipant) => Promise<ActionResult<T>>,
+  // Si quien llama no es participante, qué responder (por defecto, NOT_A_PARTICIPANT)
+  onStranger: (room: LockedRoom) => ActionError = () => "NOT_A_PARTICIPANT",
 ): Promise<ActionResult<T>> {
   try {
     return await db.$transaction(async (tx) => {
       const room = await lockRoom(tx, roomId);
       if (!room) return fail("ROOM_NOT_FOUND");
       const me = findSelf(room, jar);
-      if (!me) return fail("NOT_A_PARTICIPANT");
+      if (!me) return fail(onStranger(room));
       return action(tx, room, me);
     });
   } catch (error) {
@@ -202,7 +205,13 @@ export async function resumeSession(
 ): Promise<ActionResult<SessionView>> {
   const parsed = roomIdSchema.safeParse(roomIdInput);
   if (!parsed.success) return fail("VALIDATION");
-  return withSelf(parsed.data, jar, (tx, room, me) => reactivate(tx, room, me, me.nickname, now));
+  return withSelf(
+    parsed.data,
+    jar,
+    (tx, room, me) => reactivate(tx, room, me, me.nickname, now),
+    // Quien llega sin sesión a una sala llena lo sabe antes de elegir apodo (RF-06)
+    (room) => (canJoin(room.participants, now) ? "NOT_A_PARTICIPANT" : "ROOM_FULL"),
+  );
 }
 
 export async function renameAndResume(
@@ -295,4 +304,31 @@ export async function getRoomState(
         })),
     },
   }));
+}
+
+// Quien cierra la pestaña avisa con un beacon (RF-10): se avisa al canal por broadcast, porque su
+// WebSocket ya no puede enviarlo, y se marca su desconexión. No bloquea la sala (no toca cupo ni
+// apodos): una sola lectura para verificar la cookie y después ambas cosas en paralelo, para que
+// los demás lo vean en ≤ 2 s.
+export async function sayBye(
+  roomIdInput: unknown,
+  { jar, now }: Deps,
+): Promise<ActionResult<null>> {
+  const parsed = roomIdSchema.safeParse(roomIdInput);
+  if (!parsed.success) return fail("VALIDATION");
+  const roomId = parsed.data;
+  const token = readSessionToken(jar, roomId);
+  if (!token) return fail("NOT_A_PARTICIPANT");
+
+  const me = await db.participant.findFirst({ where: { roomId, tokenHash: hashToken(token) } });
+  if (!me || !isActive(me, now)) return fail("NOT_A_PARTICIPANT");
+
+  await Promise.all([
+    broadcastToRoom(roomId, "bye", { participantId: me.id }),
+    db.participant.updateMany({
+      where: { id: me.id, disconnectedAt: null },
+      data: { disconnectedAt: now },
+    }),
+  ]);
+  return { ok: true, data: null };
 }

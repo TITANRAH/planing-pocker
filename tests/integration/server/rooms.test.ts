@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import {
@@ -8,6 +9,7 @@ import {
   markDisconnected,
   renameAndResume,
   resumeSession,
+  sayBye,
 } from "@/server/room-service";
 import { hashToken } from "@/server/token";
 import { FakeCookieJar } from "../../helpers/fake-cookies";
@@ -237,6 +239,24 @@ describe("resumeSession y renameAndResume", () => {
     });
   });
 
+  it("RF-06: quien no es participante y abre una sala llena recibe ROOM_FULL", async () => {
+    const roomId = await newRoom("abrir-llena");
+    await db.participant.createMany({
+      data: Array.from({ length: 14 }, (_, i) => ({
+        roomId,
+        nickname: `Otro ${i}`,
+        nicknameKey: `otro ${i}`,
+        role: "PLAYER" as const,
+        tokenHash: `hash-${roomId}-${i}`,
+        lastSeenAt: NOW,
+      })),
+    });
+    expect(await resumeSession(roomId, { jar: new FakeCookieJar(), now: at(10 * SEC) })).toEqual({
+      ok: false,
+      error: "ROOM_FULL",
+    });
+  });
+
   it("RF-07: una sala inexistente devuelve ROOM_NOT_FOUND", async () => {
     expect(await resumeSession("NoExiste_123", { jar: new FakeCookieJar(), now: NOW })).toEqual({
       ok: false,
@@ -457,5 +477,83 @@ describe("heartbeat, markDisconnected y getRoomState", () => {
       ok: false,
       error: "NOT_A_PARTICIPANT",
     });
+  });
+});
+
+describe("sayBye", () => {
+  // Escucha el canal de la sala como lo haría otro participante en el navegador
+  async function listenForBye(roomId: string) {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
+      { auth: { persistSession: false } },
+    );
+    const received: unknown[] = [];
+    const channel = supabase.channel(`room:${roomId}`);
+    channel.on("broadcast", { event: "bye" }, ({ payload }) => received.push(payload));
+    await new Promise<void>((resolve, reject) => {
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") resolve();
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") reject(new Error(status));
+      });
+    });
+    return {
+      received,
+      async waitFor(count: number, timeoutMs: number) {
+        const start = Date.now();
+        while (received.length < count && Date.now() - start < timeoutMs) {
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      },
+      close: () => supabase.removeAllChannels(),
+    };
+  }
+
+  it("RF-10: marca la desconexión de quien se va y avisa al canal con un broadcast bye", async () => {
+    const roomId = await newRoom("bye");
+    const jar = new FakeCookieJar();
+    const joined = await join(roomId, "Ana", NOW, jar);
+    if (!joined.ok) throw new Error(joined.error);
+    const listener = await listenForBye(roomId);
+
+    try {
+      expect(await sayBye(roomId, { jar, now: at(10 * SEC) })).toEqual({ ok: true, data: null });
+      await listener.waitFor(1, 5_000);
+      expect(listener.received).toEqual([{ participantId: joined.data.participantId }]);
+      const row = await db.participant.findUniqueOrThrow({
+        where: { id: joined.data.participantId },
+      });
+      expect(row.disconnectedAt).toEqual(at(10 * SEC));
+    } finally {
+      await listener.close();
+    }
+  });
+
+  it("RF-10: sin sesión activa no marca nada ni emite el broadcast", async () => {
+    const roomId = await newRoom("bye-ajeno");
+    const jar = new FakeCookieJar();
+    const joined = await join(roomId, "Ana", NOW, jar);
+    if (!joined.ok) throw new Error(joined.error);
+    const listener = await listenForBye(roomId);
+
+    try {
+      expect(await sayBye(roomId, { jar: new FakeCookieJar(), now: NOW })).toEqual({
+        ok: false,
+        error: "NOT_A_PARTICIPANT",
+      });
+      expect(await sayBye(roomId, { jar, now: at(3 * MIN) })).toEqual({
+        ok: false,
+        error: "NOT_A_PARTICIPANT",
+      });
+      expect(await sayBye("x", { jar, now: NOW })).toEqual({ ok: false, error: "VALIDATION" });
+      await listener.waitFor(1, 1_500);
+      expect(listener.received).toEqual([]);
+      const row = await db.participant.findUniqueOrThrow({
+        where: { id: joined.data.participantId },
+      });
+      expect(row.disconnectedAt).toBeNull();
+    } finally {
+      await listener.close();
+    }
   });
 });

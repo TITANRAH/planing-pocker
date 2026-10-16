@@ -116,6 +116,46 @@ describe("presenceReducer", () => {
     expect(byId(state, "a")).toMatchObject({ connected: true, lastSeenAt: T0 + 40 * SEC });
   });
 
+  it("RF-10: un bye lo marca desconectado al instante y programa su retirada a +2 min", () => {
+    const state = presenceReducer(start(), {
+      type: "bye",
+      payload: { participantId: "a" },
+      now: T0 + SEC,
+    });
+    expect(byId(state, "a")).toMatchObject({
+      connected: false,
+      disconnectedAt: T0 + SEC,
+      removeAt: T0 + SEC + 2 * MIN,
+      disconnectReason: "bye",
+    });
+    expect(newlyDisconnected(start(), state)).toEqual(["a"]);
+  });
+
+  it("RF-10: un bye inválido o de alguien desconocido no cambia el estado", () => {
+    const state = start();
+    expect(
+      presenceReducer(state, { type: "bye", payload: { participantId: "nadie" }, now: T0 }),
+    ).toBe(state);
+    expect(presenceReducer(state, { type: "bye", payload: { id: "a" }, now: T0 })).toBe(state);
+    expect(presenceReducer(state, { type: "bye", payload: null, now: T0 })).toBe(state);
+  });
+
+  it("RF-10: tras un bye, un sync atrasado que aún lo lista no lo reconecta", () => {
+    let state = presenceReducer(start(), { type: "bye", payload: { participantId: "a" }, now: T0 });
+    state = presenceReducer(state, { type: "sync", payloads: [mod, ana], now: T0 + SEC });
+    expect(byId(state, "a")?.connected).toBe(false);
+  });
+
+  it("RF-10: quien se despidió vuelve a verse conectado con su siguiente anuncio", () => {
+    let state = presenceReducer(start(), { type: "bye", payload: { participantId: "a" }, now: T0 });
+    state = presenceReducer(state, { type: "seen", payload: ana, now: T0 + 10 * SEC });
+    expect(byId(state, "a")).toMatchObject({
+      connected: true,
+      disconnectedAt: null,
+      removeAt: null,
+    });
+  });
+
   it("RF-08: ignora payloads inválidos", () => {
     const state = presenceReducer(start(), {
       type: "sync",
