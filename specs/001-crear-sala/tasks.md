@@ -78,7 +78,7 @@
   - **Hecho cuando:** las pruebas pasan
 
 ## Fase 4 — Tiempo real
-- [ ] **T015** Cliente Supabase y hook `useRoomPresence` (track, sync/join/leave, heartbeat de 15 s, Realtime ≤ 25 s)
+- [x] **T015** Cliente Supabase y hook `useRoomPresence` (track, sync/join/leave, heartbeat de 15 s, Realtime ≤ 25 s)
   - **RF:** RF-08, RF-10
   - **Archivos:** `src/lib/supabase/client.ts`, `src/lib/realtime/presence.ts` (reducer puro), `src/lib/realtime/use-room-presence.ts`, `tests/unit/realtime/presence.test.ts`
   - **Prueba primero:** el reducer aplica join/leave, ignora payloads inválidos y pone la retirada a `disconnectedAt + 2 min`
