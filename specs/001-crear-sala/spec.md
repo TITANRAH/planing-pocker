@@ -1,6 +1,6 @@
 # Spec 001 — Crear sala y unirse
 
-- **Estado:** Aprobada (2026-10-16)
+- **Estado:** En implementación (aprobada el 2026-10-16)
 - **Versión:** 1.0
 - **Fecha:** 2026-10-16
 
