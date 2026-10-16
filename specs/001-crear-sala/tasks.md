@@ -34,22 +34,22 @@
   - **Hecho cuando:** la migración se aplica y la prueba pasa
 
 ## Fase 2 — Dominio
-- [ ] **T007** [P] Esquemas Zod de sala, apodo, roomId y presence
+- [x] **T007** [P] Esquemas Zod de sala, apodo, roomId y presence
   - **RF:** RF-01, RF-04
   - **Archivos:** `src/lib/schemas/room.ts`, `tests/unit/schemas/room.test.ts`
   - **Prueba primero:** límites 3–50 y 2–20, recorte de espacios, roomId inválido y payload inválido
   - **Hecho cuando:** todas las pruebas pasan
-- [ ] **T008** [P] `generateRoomId`
+- [x] **T008** [P] `generateRoomId`
   - **RF:** RF-03
   - **Archivos:** `src/lib/domain/room-id.ts`, `tests/unit/domain/room-id.test.ts`
   - **Prueba primero:** 12 caracteres base64url, 1.000 IDs sin repetirse, mismo nombre → IDs distintos
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T009** [P] Reglas de dominio: `normalizeNickname`, `isActive`, `countActive`, `canJoin`, `isNicknameAvailable`
+- [x] **T009** [P] Reglas de dominio: `normalizeNickname`, `isActive`, `countActive`, `canJoin`, `isNicknameAvailable`
   - **RF:** RF-05, RF-06, RF-10
   - **Archivos:** `src/lib/domain/room.ts`, `tests/unit/domain/room.test.ts`
   - **Prueba primero:** "  JUAN " = "juan"; activo a 1:59 e inactivo a 2:01 de `disconnectedAt`; respaldo de 2:30 de `lastSeenAt`; cupo de 15 contando a los desconectados recientes
   - **Hecho cuando:** las pruebas pasan, todas con `now` inyectado
-- [ ] **T010** [P] Generar y hashear tokens de participante
+- [x] **T010** [P] Generar y hashear tokens de participante
   - **RF:** RF-09
   - **Archivos:** `src/server/token.ts`, `tests/unit/server/token.test.ts`
   - **Prueba primero:** 32 bytes base64url; el hash es determinista y distinto del token; un formato inválido se rechaza
