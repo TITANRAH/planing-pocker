@@ -10,7 +10,7 @@ export default function Home() {
             <h1 className="text-2xl font-semibold">Planning Poker</h1>
           </CardTitle>
           <CardDescription>
-            Crea una sala, comparte el link y estimad juntos con cartas virtuales.
+            Crea una sala, comparte el link y estimar junto al equipo con cartas virtuales.
           </CardDescription>
         </CardHeader>
         <CardContent>
