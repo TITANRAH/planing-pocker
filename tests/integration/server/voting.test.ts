@@ -148,6 +148,24 @@ describe("newTask", () => {
   });
 });
 
+describe("newTask concurrente", () => {
+  it("RF-08: dos nuevas tareas simultáneas dejan exactamente una ronda abierta, la más reciente", async () => {
+    const r = await withTask("nueva-concurrente");
+    const deps = { jar: r.mod.jar, now: at(10 * SEC) };
+    const [a, b] = await Promise.all([
+      newTask({ roomId: r.roomId, title: "Tarea A" }, deps),
+      newTask({ roomId: r.roomId, title: "Tarea B" }, deps),
+    ]);
+    expect(a.ok && b.ok).toBe(true);
+
+    const open = await db.round.findMany({ where: { roomId: r.roomId, status: "OPEN" } });
+    expect(open).toHaveLength(1);
+    const state = await getRoomState(r.roomId, { jar: r.mod.jar, now: at(10 * SEC) });
+    if (!state.ok) throw new Error(state.error);
+    expect(state.data.round).toEqual({ id: open[0]?.id });
+  });
+});
+
 describe("editTask", () => {
   it("RF-13: corrige título y detalle sin tocar la ronda ni los votos", async () => {
     const r = await withTask("editar");

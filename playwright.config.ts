@@ -12,6 +12,9 @@ export default defineConfig({
   testDir: "tests/e2e",
   globalTeardown: "./tests/helpers/global-teardown.ts",
   fullyParallel: true,
+  // Pocas pruebas a la vez: las que tienen límites de tiempo (≤ 2 s) no deben medir la carga del
+  // equipo de pruebas (plan 002 v1.1)
+  workers: 2,
   retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: `http://localhost:${PORT}`,

@@ -162,9 +162,13 @@ export type SessionView = { participantId: string; nickname: string; role: Role 
 
 type Reactivated = { view: SessionView; clearedRoundId: string | null };
 
+// "La ronda abierta" es siempre la más reciente (plan 002 v1.1, §3)
+const LATEST_FIRST = [{ openedAt: "desc" as const }, { id: "desc" as const }];
+
 function findOpenRound(tx: Tx, roomId: string) {
   return tx.round.findFirst({
     where: { roomId, status: "OPEN" },
+    orderBy: LATEST_FIRST,
     include: { task: true, votes: { select: { participantId: true, card: true } } },
   });
 }
@@ -288,17 +292,15 @@ export async function renameAndResume(
   return resumeWith(roomId, jar, (tx, room, me) => reactivate(tx, room, me, nickname, now));
 }
 
-// Las acciones de una sesión en curso exigen que quien llama siga activo; si expiró, debe volver
-// con resumeSession, que comprueba apodo y cupo.
-async function withActiveSelf<T>(
-  roomId: string,
-  jar: CookieJar,
-  now: Date,
-  action: (tx: Tx, room: LockedRoom, me: RoomParticipant) => Promise<ActionResult<T>>,
-): Promise<ActionResult<T>> {
-  return withSelf(roomId, jar, (tx, room, me) =>
-    isActive(me, now) ? action(tx, room, me) : Promise.resolve(fail("NOT_A_PARTICIPANT")),
-  );
+// Busca a quien llama por su cookie, sin bloquear la sala. Para las acciones frecuentes (latido,
+// estado, votos): Next ejecuta las Server Actions de cada navegador en cola, así que deben ser
+// rápidas para no retrasar a las demás (RF-02/RF-06 de la spec 002 piden ≤ 2 s).
+async function findActiveSelf(client: Tx | typeof db, roomId: string, jar: CookieJar, now: Date) {
+  const token = readSessionToken(jar, roomId);
+  if (!token) return fail("NOT_A_PARTICIPANT");
+  const me = await client.participant.findFirst({ where: { roomId, tokenHash: hashToken(token) } });
+  if (!me || !isActive(me, now)) return fail("NOT_A_PARTICIPANT");
+  return { ok: true as const, data: me };
 }
 
 export async function heartbeat(
@@ -307,13 +309,13 @@ export async function heartbeat(
 ): Promise<ActionResult<null>> {
   const parsed = roomIdSchema.safeParse(roomIdInput);
   if (!parsed.success) return fail("VALIDATION");
-  return withActiveSelf(parsed.data, jar, now, async (tx, _room, me) => {
-    await tx.participant.update({
-      where: { id: me.id },
-      data: { lastSeenAt: now, disconnectedAt: null },
-    });
-    return { ok: true, data: null };
+  const me = await findActiveSelf(db, parsed.data, jar, now);
+  if (!me.ok) return me;
+  await db.participant.update({
+    where: { id: me.data.id },
+    data: { lastSeenAt: now, disconnectedAt: null },
   });
+  return { ok: true, data: null };
 }
 
 export async function markDisconnected(
@@ -323,14 +325,14 @@ export async function markDisconnected(
   const parsed = markDisconnectedInput.safeParse(input);
   if (!parsed.success) return fail("VALIDATION");
   const { roomId, participantId } = parsed.data;
-  return withActiveSelf(roomId, jar, now, async (tx) => {
-    // Solo dentro de la misma sala, y sin pisar una marca existente (gana el primero)
-    await tx.participant.updateMany({
-      where: { id: participantId, roomId, disconnectedAt: null },
-      data: { disconnectedAt: now },
-    });
-    return { ok: true, data: null };
+  const me = await findActiveSelf(db, roomId, jar, now);
+  if (!me.ok) return me;
+  // Solo dentro de la misma sala, y sin pisar una marca existente (gana el primero)
+  await db.participant.updateMany({
+    where: { id: participantId, roomId, disconnectedAt: null },
+    data: { disconnectedAt: now },
   });
+  return { ok: true, data: null };
 }
 
 export type ParticipantView = {
@@ -357,35 +359,47 @@ export async function getRoomState(
 ): Promise<ActionResult<RoomState>> {
   const parsed = roomIdSchema.safeParse(roomIdInput);
   if (!parsed.success) return fail("VALIDATION");
-  return withActiveSelf(parsed.data, jar, now, async (tx, room, me) => {
-    const active = room.participants.filter((p) => isActive(p, now));
-    const activeIds = new Set(active.map((p) => p.id));
-    const round = await findOpenRound(tx, room.id);
-    const myCard = round?.votes.find((v) => v.participantId === me.id)?.card;
-    return {
-      ok: true,
-      data: {
-        room: { id: room.id, name: room.name },
-        me: me.id,
-        // Nunca se exponen tokens ni hashes
-        participants: active.map((p) => ({
-          id: p.id,
-          nickname: p.nickname,
-          role: p.role,
-          disconnectedAt: p.disconnectedAt,
-        })),
-        task: round
-          ? { id: round.task.id, title: round.task.title, detail: round.task.detail }
-          : null,
-        round: round ? { id: round.id } : null,
-        voted: round
-          ? round.votes.map((v) => v.participantId).filter((id) => activeIds.has(id))
-          : [],
-        // Solo la carta propia; las demás no salen del servidor
-        myVote: myCard ? cardSchema.parse(myCard) : null,
-      },
-    };
-  });
+  const roomId = parsed.data;
+  // Solo lectura: sin bloqueo y con las dos consultas en paralelo
+  const [room, round] = await Promise.all([
+    db.room.findUnique({
+      where: { id: roomId },
+      include: { participants: { orderBy: { createdAt: "asc" } } },
+    }),
+    db.round.findFirst({
+      where: { roomId, status: "OPEN" },
+      orderBy: LATEST_FIRST,
+      include: { task: true, votes: { select: { participantId: true, card: true } } },
+    }),
+  ]);
+  if (!room) return fail("ROOM_NOT_FOUND");
+  const token = readSessionToken(jar, roomId);
+  const tokenHash = token ? hashToken(token) : null;
+  const me = room.participants.find((p) => p.tokenHash === tokenHash);
+  if (!me || !isActive(me, now)) return fail("NOT_A_PARTICIPANT");
+
+  const active = room.participants.filter((p) => isActive(p, now));
+  const activeIds = new Set(active.map((p) => p.id));
+  const myCard = round?.votes.find((v) => v.participantId === me.id)?.card;
+  return {
+    ok: true,
+    data: {
+      room: { id: room.id, name: room.name },
+      me: me.id,
+      // Nunca se exponen tokens ni hashes
+      participants: active.map((p) => ({
+        id: p.id,
+        nickname: p.nickname,
+        role: p.role,
+        disconnectedAt: p.disconnectedAt,
+      })),
+      task: round ? taskView(round.task) : null,
+      round: round ? { id: round.id } : null,
+      voted: round ? round.votes.map((v) => v.participantId).filter((id) => activeIds.has(id)) : [],
+      // Solo la carta propia; las demás no salen del servidor
+      myVote: myCard ? cardSchema.parse(myCard) : null,
+    },
+  };
 }
 
 // Quien cierra la pestaña avisa con un beacon (RF-10): se avisa al canal por broadcast, porque su
@@ -427,8 +441,25 @@ const taskView = (task: { id: string; title: string; detail: string | null }): T
   detail: task.detail,
 });
 
-// RF-01 y RF-08: carga una tarea nueva y abre su ronda; si había una ronda abierta, la cierra y
-// descarta sus votos (con confirmación previa si había votos)
+// Contexto de las acciones de votación que no necesitan bloquear la sala (no tocan el cupo ni la
+// regla de una ronda abierta): quién llama y la ronda abierta, leídos en paralelo. Cada consulta
+// es un viaje a la BD, y RF-02/RF-06/RF-13 piden ≤ 2 s.
+async function votingContext(roomId: string, jar: CookieJar, now: Date) {
+  const [me, open] = await Promise.all([
+    findActiveSelf(db, roomId, jar, now),
+    db.round.findFirst({
+      where: { roomId, status: "OPEN" },
+      orderBy: LATEST_FIRST,
+      select: { id: true, taskId: true },
+    }),
+  ]);
+  if (!me.ok) return me;
+  return { ok: true as const, data: { me: me.data, open } };
+}
+
+// RF-01 y RF-08: carga una tarea nueva y abre su ronda; las rondas abiertas anteriores se cierran
+// y sus votos se descartan (con confirmación previa si había votos). Sin bloquear la sala: la
+// regla de una sola ronda abierta se mantiene con "gana la más reciente" (plan 002 v1.1, §3).
 export async function newTask(
   input: unknown,
   { jar, now }: Deps,
@@ -436,24 +467,39 @@ export async function newTask(
   const parsed = newTaskInput.safeParse(input);
   if (!parsed.success) return fail("VALIDATION");
   const { roomId, title, detail, discardVotes } = parsed.data;
-  return announceTask(
-    roomId,
-    await withActiveSelf(roomId, jar, now, async (tx, _room, me) => {
-      if (me.role !== "MODERATOR") return fail("NOT_MODERATOR");
-      const open = await findOpenRound(tx, roomId);
-      if (open && open.votes.length > 0 && !discardVotes) return fail("VOTES_PRESENT");
-      if (open) {
-        await tx.vote.deleteMany({ where: { roundId: open.id } });
-        await tx.round.update({
-          where: { id: open.id },
-          data: { status: "CLOSED", closedAt: now },
-        });
-      }
-      const task = await tx.task.create({ data: { roomId, title, detail } });
-      const round = await tx.round.create({ data: { roomId, taskId: task.id, openedAt: now } });
-      return { ok: true, data: { roundId: round.id, task: taskView(task) } };
+  const [self, open] = await Promise.all([
+    findActiveSelf(db, roomId, jar, now),
+    db.round.findFirst({
+      where: { roomId, status: "OPEN" },
+      orderBy: LATEST_FIRST,
+      select: { id: true, _count: { select: { votes: true } } },
     }),
-  );
+  ]);
+  if (!self.ok) return self;
+  if (self.data.role !== "MODERATOR") return fail("NOT_MODERATOR");
+  const votes = open?._count.votes ?? 0;
+  if (votes > 0 && !discardVotes) return fail("VOTES_PRESENT");
+
+  // Dos escrituras simples: una escritura anidada abre una transacción implícita (más viajes)
+  const task = await db.task.create({ data: { roomId, title, detail } });
+  const round = await db.round.create({
+    data: { roomId, taskId: task.id, openedAt: now },
+    select: { id: true },
+  });
+
+  // Cierre atómico de las rondas abiertas anteriores a la nueva (por fecha y, si empatan, por id)
+  await Promise.all([
+    db.round.updateMany({
+      where: {
+        roomId,
+        status: "OPEN",
+        OR: [{ openedAt: { lt: now } }, { openedAt: now, id: { lt: round.id } }],
+      },
+      data: { status: "CLOSED", closedAt: now },
+    }),
+    open && votes > 0 ? db.vote.deleteMany({ where: { roundId: open.id } }) : null,
+  ]);
+  return announceTask(roomId, { ok: true, data: { roundId: round.id, task: taskView(task) } });
 }
 
 // RF-13: corrige el título o el detalle de la tarea actual sin tocar la ronda ni los votos
@@ -464,16 +510,13 @@ export async function editTask(
   const parsed = editTaskInput.safeParse(input);
   if (!parsed.success) return fail("VALIDATION");
   const { roomId, taskId, title, detail } = parsed.data;
-  return announceTask(
-    roomId,
-    await withActiveSelf(roomId, jar, now, async (tx, _room, me) => {
-      if (me.role !== "MODERATOR") return fail("NOT_MODERATOR");
-      const open = await findOpenRound(tx, roomId);
-      if (!open || open.taskId !== taskId) return fail("ROUND_CLOSED");
-      const task = await tx.task.update({ where: { id: taskId }, data: { title, detail } });
-      return { ok: true, data: { roundId: open.id, task: taskView(task) } };
-    }),
-  );
+  const ctx = await votingContext(roomId, jar, now);
+  if (!ctx.ok) return ctx;
+  const { me, open } = ctx.data;
+  if (me.role !== "MODERATOR") return fail("NOT_MODERATOR");
+  if (!open || open.taskId !== taskId) return fail("ROUND_CLOSED");
+  const task = await db.task.update({ where: { id: taskId }, data: { title, detail } });
+  return announceTask(roomId, { ok: true, data: { roundId: open.id, task: taskView(task) } });
 }
 
 // RF-03, RF-04, RF-09, RF-12: vota o cambia la carta en la ronda abierta
@@ -481,22 +524,27 @@ export async function castVote(input: unknown, { jar, now }: Deps): Promise<Acti
   const parsed = castVoteInput.safeParse(input);
   if (!parsed.success) return fail("VALIDATION");
   const { roomId, roundId, card } = parsed.data;
-  const result = await withActiveSelf(roomId, jar, now, async (tx, _room, me) => {
-    const open = await findOpenRound(tx, roomId);
-    if (!open || open.id !== roundId) return fail("ROUND_CLOSED");
-    const isFirstVote = !open.votes.some((v) => v.participantId === me.id);
-    await tx.vote.upsert({
-      where: { roundId_participantId: { roundId, participantId: me.id } },
-      create: { roundId, participantId: me.id, card },
-      update: { card },
-    });
-    return { ok: true, data: { participantId: me.id, isFirstVote } };
-  });
-  if (!result.ok) return result;
-  // Cambiar de carta no cambia "ya votó": solo se avisa del primer voto
-  if (result.data.isFirstVote) {
-    await announceVote(roomId, roundId, result.data.participantId, true);
+  const ctx = await votingContext(roomId, jar, now);
+  if (!ctx.ok) return ctx;
+  const { me, open } = ctx.data;
+  if (!open || open.id !== roundId) return fail("ROUND_CLOSED");
+
+  // Cambiar la carta es una sola escritura; si no había voto, se crea (primer voto)
+  const where = { roundId, participantId: me.id };
+  const { count } = await db.vote.updateMany({ where, data: { card } });
+  let isFirstVote = false;
+  if (count === 0) {
+    try {
+      await db.vote.create({ data: { ...where, card } });
+      isFirstVote = true;
+    } catch (error) {
+      // Otra petición del mismo participante creó el voto a la vez: basta con actualizarlo
+      if (!isUniqueViolation(error)) throw error;
+      await db.vote.updateMany({ where, data: { card } });
+    }
   }
+  // Cambiar de carta no cambia "ya votó": solo se avisa del primer voto
+  if (isFirstVote) await announceVote(roomId, roundId, me.id, true);
   return { ok: true, data: null };
 }
 
@@ -505,14 +553,12 @@ export async function clearVote(input: unknown, { jar, now }: Deps): Promise<Act
   const parsed = clearVoteInput.safeParse(input);
   if (!parsed.success) return fail("VALIDATION");
   const { roomId, roundId } = parsed.data;
-  const result = await withActiveSelf(roomId, jar, now, async (tx, _room, me) => {
-    const open = await findOpenRound(tx, roomId);
-    if (!open || open.id !== roundId) return fail("ROUND_CLOSED");
-    const { count } = await tx.vote.deleteMany({ where: { roundId, participantId: me.id } });
-    return { ok: true, data: { participantId: me.id, removed: count > 0 } };
-  });
-  if (!result.ok) return result;
-  if (result.data.removed) await announceVote(roomId, roundId, result.data.participantId, false);
+  const ctx = await votingContext(roomId, jar, now);
+  if (!ctx.ok) return ctx;
+  const { me, open } = ctx.data;
+  if (!open || open.id !== roundId) return fail("ROUND_CLOSED");
+  const { count } = await db.vote.deleteMany({ where: { roundId, participantId: me.id } });
+  if (count > 0) await announceVote(roomId, roundId, me.id, false);
   return { ok: true, data: null };
 }
 

@@ -2,7 +2,7 @@
 
 - **Spec:** ./spec.md (versión 1.0)
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16) · versión 1.0
+- **Estado:** Aprobado (2026-10-16) · versión 1.1
 
 ## 1. Resumen técnico
 Se añaden tres modelos (Task, Round, Vote) al esquema de Prisma. Toda acción de votación pasa por
@@ -74,10 +74,14 @@ model Vote {
 Se añaden las relaciones inversas en `Room` (`tasks`, `rounds`) y en `Participant` (`votes`).
 Migración: `voting`.
 
-**Reglas que asegura el código** (no se pueden expresar en Prisma), siempre dentro de `lockRoom`:
-como mucho una ronda `OPEN` por sala; "nueva tarea" cierra la ronda abierta y **borra sus
-votos** (RF-08); al volver alguien que había sido retirado (`reactivate` tras expirar), **se
-borran sus votos de la ronda abierta** (RF-11). El contador solo cuenta a participantes activos.
+**Reglas que asegura el código** (no se pueden expresar en Prisma):
+- **Una sola ronda abierta: gana la más reciente.** `newTask` crea la tarea y su ronda en una
+  consulta y después cierra, de forma atómica (`updateMany`), las demás rondas `OPEN` de la sala
+  más antiguas que la nueva (por `openedAt` y, si empatan, por `id`). Si dos `newTask` coinciden,
+  queda abierta solo la más reciente. Toda lectura de "la ronda abierta" toma la más reciente.
+- "Nueva tarea" **borra los votos** de la ronda que cierra (RF-08); al volver alguien que había
+  sido retirado (`reactivate` tras expirar), **se borran sus votos de la ronda abierta** (RF-11).
+  El contador solo cuenta a participantes activos.
 
 ## 4. Contratos
 
@@ -95,7 +99,7 @@ borran sus votos de la ronda abierta** (RF-11). El contador solo cuenta a partic
 
 | Acción | Efecto | Quién | Broadcast |
 |---|---|---|---|
-| `newTask` | Si hay ronda abierta con votos y `discardVotes = false` → `VOTES_PRESENT`. Si no: cierra la ronda abierta (borra sus votos), crea Task + Round `OPEN` | Moderador activo | `task` |
+| `newTask` | Si hay ronda abierta con votos y `discardVotes = false` → `VOTES_PRESENT`. Si no: crea Task + Round `OPEN` y cierra atómicamente las rondas abiertas anteriores, borrando sus votos. Sin bloquear la sala (≈ 3 viajes a la BD) | Moderador activo | `task` |
 | `editTask` | Actualiza título/detalle de la tarea de la ronda abierta; votos intactos | Moderador activo | `task` |
 | `castVote` | Valida la carta y que `roundId` sea la ronda abierta (si no → `ROUND_CLOSED`); crea o cambia el voto | Participante activo | `vote` (voted = true) solo si antes no había votado |
 | `clearVote` | Borra el voto propio de la ronda abierta | Participante activo | `vote` (voted = false) |
@@ -145,8 +149,13 @@ borran sus votos de la ronda abierta** (RF-11). El contador solo cuenta a partic
 | Volver a pedir el estado al suscribirse y cada 15 s | Confiar solo en los eventos | Un evento perdido (reconexión) se corrige en ≤ 15 s sin lógica de reenvío. |
 | Reorganizar `useRoomPresence` en `useRoomChannel` | Abrir un segundo canal | Un solo WebSocket y canal por sala; misma suscripción para presence y votación. |
 | Canal público (como en la 001) | Canales privados con RLS | Seguro para esta feature porque **ninguna carta viaja por Realtime**. Lo vuelve a revisar la 003 al revelar. |
+| `newTask` sin bloqueo: "gana la ronda más reciente" | Transacción con `SELECT … FOR UPDATE` | Medido: en dev cada consulta cuesta ~146 ms (Supabase en `ca-central-1`) y la transacción con bloqueo (~9 viajes) + broadcast superaba los 2 s de RF-02 con las pruebas en paralelo. **Riesgo:** durante ~150 ms puede haber dos rondas abiertas si coinciden dos `newTask` (solo el moderador puede llamarlo); las lecturas toman la más reciente. |
+| Acciones frecuentes sin bloqueo (`castVote`, `clearVote`, `editTask`, `heartbeat`, `markDisconnected`, `getRoomState`) y llamadas periódicas sin solaparse | Todas con `lockRoom` | Next ejecuta las Server Actions de cada navegador **en cola**: una acción lenta retrasa las siguientes. Ninguna de ellas toca el cupo ni la regla de una ronda abierta. Votar pasó de 1,8–2,8 s a ≈ 0,8 s. |
+| Producción en `sa-east-1` (São Paulo) + Vercel `gru1` | Canadá | El equipo está en Sudamérica. Supabase no permitió elegir región para dev, así que dev queda en `ca-central-1`; **el proyecto de prod debe crearse en São Paulo**. |
+| E2E con 2 workers | Paralelismo por defecto (5) | Las pruebas con límites de tiempo no deben medir la carga del equipo de pruebas. |
 
 ## 8. Historial de cambios
 | Versión | Fecha | Tipo | Cambio |
 |---|---|---|---|
 | 1.0 | 2026-10-16 | Inicial | Versión inicial |
+| 1.1 | 2026-10-16 | Mejora técnica | `newTask` sin bloqueo ("gana la ronda más reciente"); acciones frecuentes sin bloqueo y sin solaparse; región de prod `sa-east-1`; e2e con 2 workers. Spec sin cambios. |

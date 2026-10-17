@@ -6,6 +6,8 @@ export type ParticipantListItem = {
   nickname: string;
   role: Role;
   connected: boolean;
+  // Ya votó en la ronda abierta; nunca se muestra qué votó (RF-05, RF-06)
+  voted?: boolean;
 };
 
 // Lista de participantes de la sala (RF-08): apodo, estado de conexión y moderador destacado
@@ -28,6 +30,7 @@ export function ParticipantList({
           />
           <span className="flex-1 truncate">{p.nickname}</span>
           <span className="sr-only">{p.connected ? "Conectado" : "Desconectado"}</span>
+          {p.voted && <Badge variant="outline">Votó</Badge>}
           {p.role === "MODERATOR" && <Badge variant="secondary">Moderador</Badge>}
         </li>
       ))}

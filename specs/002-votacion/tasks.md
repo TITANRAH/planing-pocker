@@ -2,7 +2,7 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16)
+- **Estado:** Aprobado (2026-10-16) · cambio v1.1 aprobado (2026-10-16)
 
 ## Fase 1 — Preparación
 - [x] **T001** Prisma: modelos Task, Round y Vote + migración `voting`
@@ -82,27 +82,27 @@
     15 s, y compila sin `any`
 
 ## Fase 5 — UI
-- [ ] **T012** `TaskPanel`: cargar, editar y nueva tarea con confirmación
+- [x] **T012** `TaskPanel`: cargar, editar y nueva tarea con confirmación
   - **RF:** RF-01, RF-02, RF-08, RF-09, RF-13
   - **Archivos:** `src/components/task-panel.tsx`, `src/components/room-view.tsx`, `tests/e2e/voting.spec.ts`
   - **Prueba primero:** el moderador carga una tarea y otro navegador la ve en ≤ 2 s; errores de
     validación; editar el título conserva los votos; nueva tarea con votos pide confirmación y
     deja "0 de M"; un jugador no ve los controles; sin tarea se muestra "Esperando…"
   - **Hecho cuando:** el e2e pasa
-- [ ] **T013** `CardDeck`
+- [x] **T013** `CardDeck`
   - **RF:** RF-03, RF-04, RF-07, RF-09
   - **Archivos:** `src/components/card-deck.tsx`, `tests/e2e/voting.spec.ts`
   - **Prueba primero:** elegir "5" la marca (`aria-pressed`); elegir "8" la cambia; volver a
     tocar la quita; al recargar sigue marcada; sin tarea las cartas están desactivadas
   - **Hecho cuando:** el e2e pasa
-- [ ] **T014** "Votó" en la lista y `VoteCounter`
+- [x] **T014** "Votó" en la lista y `VoteCounter`
   - **RF:** RF-06, RF-10
   - **Archivos:** `src/components/participant-list.tsx`, `src/components/vote-counter.tsx`, `tests/e2e/voting.spec.ts`
   - **Prueba primero:** con 3 navegadores, cuando 2 votan (uno con "?") todos ven "2 de 3
     votaron" y "Votó" junto a ellos en ≤ 2 s; quien entra con la ronda empezada ve el contador
     correcto y puede votar
   - **Hecho cuando:** el e2e pasa
-- [ ] **T015** Sala sin moderador
+- [x] **T015** Sala sin moderador
   - **RF:** RF-14
   - **Archivos:** `src/components/task-panel.tsx`, `tests/e2e/voting.spec.ts`
   - **Prueba primero:** con el moderador retirado (reloj simulado), se muestra "Esta sala no
@@ -125,17 +125,35 @@
 ## Cobertura
 | RF | Tareas |
 |---|---|
-| RF-01 | T003, T005, T012 |
-| RF-02 | T009, T011, T012, T017 |
+| RF-01 | T003, T005, T012, T018 |
+| RF-02 | T009, T011, T012, T017, T018, T019 |
 | RF-03 | T003, T007, T013 |
 | RF-04 | T007, T013 |
 | RF-05 | T003, T008, T009, T016 |
-| RF-06 | T004, T009, T011, T014, T017 |
+| RF-06 | T004, T009, T011, T014, T017, T019 |
 | RF-07 | T008, T013 |
-| RF-08 | T004, T005, T011, T012 |
+| RF-08 | T004, T005, T011, T012, T018 |
 | RF-09 | T007, T012, T013 |
 | RF-10 | T008, T014 |
 | RF-11 | T004, T008 |
 | RF-12 | T003, T005, T006, T007 |
-| RF-13 | T003, T004, T006, T011, T012, T017 |
+| RF-13 | T003, T004, T006, T011, T012, T017, T019 |
 | RF-14 | T005, T015 |
+
+## Cambio v1.1 — Tiempos ≤ 2 s con la BD remota
+
+**Orden:** … T015 → T018 → T019 → (marcar T012–T015) → T016 → T017
+
+- [x] **T018** `newTask` sin bloqueo: "gana la ronda más reciente"
+  - **RF:** RF-01, RF-02, RF-08
+  - **Archivos:** `src/server/room-service.ts`, `tests/integration/server/voting.test.ts`
+  - **Prueba primero:** dos `newTask` simultáneos del moderador dejan **exactamente una** ronda
+    abierta (la más reciente) y `getRoomState` devuelve esa; las pruebas actuales de `newTask`
+    siguen en verde
+  - **Hecho cuando:** las pruebas pasan y `newTask` tarda menos que antes (medido)
+- [x] **T019** E2E con 2 workers
+  - **RF:** RF-02, RF-06, RF-13 (estabilidad de los tiempos)
+  - **Archivos:** `playwright.config.ts`
+  - **Prueba primero:** no aplica; se verifica con `pnpm test:e2e tests/e2e/voting.spec.ts --repeat-each=3`
+  - **Hecho cuando:** la suite de votación pasa 3 veces seguidas
+

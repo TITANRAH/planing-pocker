@@ -83,11 +83,20 @@ export function useRoomPresence({
       channel.on("subscribed", announce),
     ];
 
+    // Next ejecuta las Server Actions de cada navegador en cola: si el latido anterior no terminó
+    // (p. ej. tras suspender el equipo), no se encola otro
+    let beating = false;
     const announceTimer = setInterval(() => {
       announce();
-      void heartbeat(roomId).then((result) => {
-        if (!result.ok && result.error === "NOT_A_PARTICIPANT") onExpiredRef.current();
-      });
+      if (beating) return;
+      beating = true;
+      void heartbeat(roomId)
+        .then((result) => {
+          if (!result.ok && result.error === "NOT_A_PARTICIPANT") onExpiredRef.current();
+        })
+        .finally(() => {
+          beating = false;
+        });
     }, ANNOUNCE_INTERVAL_MS);
     const tick = setInterval(() => dispatch({ type: "tick", now: Date.now() }), TICK_INTERVAL_MS);
     window.addEventListener("pagehide", sayBye);

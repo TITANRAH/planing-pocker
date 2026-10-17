@@ -35,9 +35,18 @@ export function useRoomVoting({ channel, roomId, initial }: Options): RoomVoting
     stateRef.current = state;
   }, [state]);
 
-  const refresh = useCallback(async () => {
-    const result = await getRoomState(roomId);
-    if (result.ok) dispatch({ type: "snapshot", snapshot: result.data });
+  // Un solo refresco a la vez: las Server Actions de cada navegador van en cola y un refresco
+  // pendiente retrasaría el voto o la tarea del usuario
+  const refreshing = useRef<Promise<void> | null>(null);
+  const refresh = useCallback(() => {
+    refreshing.current ??= getRoomState(roomId)
+      .then((result) => {
+        if (result.ok) dispatch({ type: "snapshot", snapshot: result.data });
+      })
+      .finally(() => {
+        refreshing.current = null;
+      });
+    return refreshing.current;
   }, [roomId]);
 
   useEffect(() => {
