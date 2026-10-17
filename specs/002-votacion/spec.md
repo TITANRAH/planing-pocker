@@ -1,6 +1,6 @@
 # Spec 002 — Cargar tarea y votar
 
-- **Estado:** En implementación (aprobada el 2026-10-16)
+- **Estado:** Implementada (aprobada y verificada el 2026-10-16)
 - **Versión:** 1.0
 - **Fecha:** 2026-10-16
 

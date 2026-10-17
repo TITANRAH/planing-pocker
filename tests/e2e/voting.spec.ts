@@ -175,4 +175,23 @@ test.describe("votación", () => {
     await card(beto, "8").click();
     await expect(card(beto, "8")).toHaveAttribute("aria-pressed", "true");
   });
+
+  test("RF-14: sin moderador y sin tarea, se avisa y no se puede votar", async ({ browser }) => {
+    const ana = await browser.newPage();
+    const url = await createRoomViaUi(ana, testRoomName("e2e-sin-moderador-sin-tarea"), "Ana");
+    const beto = await joinViaUi(browser, url, "Beto", (page) => page.clock.install());
+
+    await ana.goto("about:blank");
+    await ana.close();
+    await expect(
+      participantItem(beto, "Ana").getByText("Desconectado", { exact: true }),
+    ).toBeAttached({
+      timeout: 2_000,
+    });
+    await beto.clock.runFor("02:01");
+    await expect(beto.getByText("Esta sala no tiene moderador")).toBeVisible();
+    await expect(beto.getByRole("button", { name: "Empezar votación" })).toHaveCount(0);
+    await expect(beto.getByLabel("Título de la tarea")).toHaveCount(0);
+    await expect(card(beto, "5")).toBeDisabled();
+  });
 });

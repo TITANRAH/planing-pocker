@@ -2,7 +2,7 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16) · cambio v1.1 aprobado (2026-10-16)
+- **Estado:** Aprobado (2026-10-16) · cambio v1.1 y corrección de cobertura aprobados (2026-10-16)
 
 ## Fase 1 — Preparación
 - [x] **T001** Prisma: modelos Task, Round y Vote + migración `voting`
@@ -138,7 +138,7 @@
 | RF-11 | T004, T008 |
 | RF-12 | T003, T005, T006, T007 |
 | RF-13 | T003, T004, T006, T011, T012, T017, T019 |
-| RF-14 | T005, T015 |
+| RF-14 | T005, T015, T020 |
 
 ## Cambio v1.1 — Tiempos ≤ 2 s con la BD remota
 
@@ -156,4 +156,13 @@
   - **Archivos:** `playwright.config.ts`
   - **Prueba primero:** no aplica; se verifica con `pnpm test:e2e tests/e2e/voting.spec.ts --repeat-each=3`
   - **Hecho cuando:** la suite de votación pasa 3 veces seguidas
+
+## Corrección — cobertura de la verificación (verification.md, 2026-10-16)
+
+- [x] **T020** Cobertura: RF-14 sin moderador y sin tarea
+  - **RF:** RF-14
+  - **Archivos:** `tests/e2e/voting.spec.ts`
+  - **Prueba primero:** con el moderador retirado (reloj simulado) y sin tarea cargada, Beto ve
+    "Esta sala no tiene moderador", no tiene controles de tarea y las cartas están desactivadas
+  - **Hecho cuando:** la prueba pasa (si falla, se corrige en esta tarea) y `sdd-verify` sale en verde
 
