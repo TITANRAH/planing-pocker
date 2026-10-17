@@ -119,7 +119,7 @@
   - **Hecho cuando:** el e2e pasa
 
 ## Fase 6 — E2E
-- [ ] **T016** Secreto antes de revelar y suite completa estable
+- [x] **T016** Secreto antes de revelar y suite completa estable
   - **RF:** todos (y RF-05 de la 002)
   - **Archivos:** `tests/e2e/voting-secret.spec.ts`
   - **Prueba primero:** ampliar el e2e del secreto: la carta de Ana **no** llega a Beto antes de
