@@ -14,6 +14,7 @@ enum Role {
 
 enum RoundStatus {
   OPEN
+  REVEALED
   CLOSED
 }
 
@@ -27,45 +28,54 @@ model Room {
 }
 
 model Participant {
-  id             String    @id @default(cuid())
+  id             String        @id @default(cuid())
   roomId         String
-  room           Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  room           Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
   nickname       String // tal como lo escribió (para mostrar)
   nicknameKey    String? // normalizado (trim + minúsculas); null = apodo liberado
   role           Role
-  tokenHash      String    @unique // SHA-256 del token de la cookie
-  lastSeenAt     DateTime  @default(now()) // último latido
+  tokenHash      String        @unique // SHA-256 del token de la cookie
+  lastSeenAt     DateTime      @default(now()) // último latido
   disconnectedAt DateTime? // cuándo se lo vio desconectado; null = conectado
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime      @default(now())
   votes          Vote[]
+  revealEntries  RevealEntry[]
+  estimatedTasks Task[]        @relation("TaskEstimatedBy")
 
   @@unique([roomId, nicknameKey])
   @@index([roomId])
 }
 
 model Task {
-  id        String   @id @default(cuid())
-  roomId    String
-  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  title     String
-  detail    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  rounds    Round[]
+  id            String       @id @default(cuid())
+  roomId        String
+  room          Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  title         String
+  detail        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  rounds        Round[]
+  // Estimación final (spec 003): carta numérica, validada con estimateSchema
+  estimate      String?
+  estimatedAt   DateTime?
+  estimatedById String?
+  estimatedBy   Participant? @relation("TaskEstimatedBy", fields: [estimatedById], references: [id], onDelete: SetNull)
 
   @@index([roomId])
 }
 
 model Round {
-  id       String      @id @default(cuid())
-  roomId   String
-  room     Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  taskId   String
-  task     Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  status   RoundStatus @default(OPEN)
-  openedAt DateTime    @default(now())
-  closedAt DateTime?
-  votes    Vote[]
+  id         String        @id @default(cuid())
+  roomId     String
+  room       Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  taskId     String
+  task       Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  status     RoundStatus   @default(OPEN)
+  openedAt   DateTime      @default(now())
+  closedAt   DateTime?
+  revealedAt DateTime?
+  votes      Vote[]
+  entries    RevealEntry[]
 
   @@index([roomId, status])
 }
@@ -78,6 +88,19 @@ model Vote {
   participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   card          String // validado con cardSchema ("?" y "☕" no son identificadores de enum válidos)
   updatedAt     DateTime    @updatedAt
+
+  @@unique([roundId, participantId])
+}
+
+// Foto fija de la ronda al revelar (spec 003): una fila por participante activo en ese momento
+model RevealEntry {
+  id            String      @id @default(cuid())
+  roundId       String
+  round         Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  nickname      String // apodo al revelar (puede cambiar después)
+  card          String? // null = "No votó"; validado con cardSchema
 
   @@unique([roundId, participantId])
 }

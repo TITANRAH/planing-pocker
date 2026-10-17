@@ -5,7 +5,7 @@
 - **Estado:** Aprobado (2026-10-16)
 
 ## Fase 1 — Preparación
-- [ ] **T001** Prisma: estado `REVEALED`, `revealedAt`, modelo `RevealEntry`, estimación en `Task` + migración `reveal`
+- [x] **T001** Prisma: estado `REVEALED`, `revealedAt`, modelo `RevealEntry`, estimación en `Task` + migración `reveal`
   - **RF:** — (base de RF-01…RF-13)
   - **Archivos:** `prisma/schema.prisma`, `prisma/migrations/*`, `tests/integration/reveal-db.test.ts`
   - **Prueba primero:** guarda una ronda `REVEALED` con su foto (una entrada con carta y otra sin
