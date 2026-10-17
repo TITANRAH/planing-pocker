@@ -110,13 +110,13 @@
   - **Hecho cuando:** el e2e pasa
 
 ## Fase 6 — E2E
-- [ ] **T016** E2E del secreto del voto
+- [x] **T016** E2E del secreto del voto
   - **RF:** RF-05
   - **Archivos:** `tests/e2e/voting-secret.spec.ts`
   - **Prueba primero:** Ana vota "13"; se capturan todas las respuestas HTTP y los frames
     WebSocket que recibe el navegador de Beto, y ninguno contiene la carta de Ana
   - **Hecho cuando:** el e2e pasa
-- [ ] **T017** Suite completa estable
+- [x] **T017** Suite completa estable
   - **RF:** todos
   - **Prueba primero:** no aplica; `pnpm test:e2e --repeat-each=3` en verde, con los tiempos de
     ≤ 2 s de RF-02, RF-06 y RF-13
