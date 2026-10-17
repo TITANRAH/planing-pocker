@@ -145,4 +145,24 @@ test.describe("historial", () => {
     await ana.getByRole("alertdialog").getByRole("button", { name: "Sí, volver a votar" }).click();
     await expect(historyItem(beto, "Login · 5")).toHaveCount(0, { timeout: 2_000 });
   });
+
+  test("RF-09: la ruta del historial exige sesión y devuelve la lista de la sala", async ({
+    browser,
+  }) => {
+    const { ana, beto, url } = await room(browser, "e2e-hist-ruta");
+    await estimateViaUi(ana, beto, "Login", ["5", "5"], "5");
+    const roomId = new URL(url).pathname.split("/").pop();
+    const path = `/api/rooms/${roomId}/history`;
+
+    const ok = await beto.request.get(path);
+    expect(ok.status()).toBe(200);
+    expect(await ok.json()).toMatchObject([{ title: "Login", estimate: "5" }]);
+
+    const stranger = await browser.newContext();
+    expect((await stranger.request.get(new URL(path, url).href)).status()).toBe(403);
+    expect(
+      (await stranger.request.get(new URL("/api/rooms/NoExiste_123/history", url).href)).status(),
+    ).toBe(404);
+    await stranger.close();
+  });
 });

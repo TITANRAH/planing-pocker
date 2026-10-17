@@ -20,6 +20,13 @@ const item = {
 };
 
 describe("historyItemSchema", () => {
+  it("RF-09: el historial vuelve a validar tras pasar por JSON y conserva sus fechas", () => {
+    const parsed = historyItemSchema.safeParse(JSON.parse(JSON.stringify(item)));
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.estimatedAt).toEqual(item.estimatedAt);
+    expect(parsed.data?.rounds[0]?.revealedAt).toEqual(item.rounds[0]?.revealedAt);
+  });
+
   it("RF-01/RF-04: acepta una tarea con estimación numérica y rondas con su foto", () => {
     expect(historyItemSchema.safeParse(item).success).toBe(true);
   });

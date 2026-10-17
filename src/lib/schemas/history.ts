@@ -2,11 +2,12 @@ import { z } from "zod";
 import { estimateSchema, revealEntrySchema } from "@/lib/schemas/reveal";
 
 // Historial de la sala (spec 004): tareas con estimación y sus rondas reveladas. Solo incluye
-// rondas reveladas, así que las cartas que contiene ya son públicas (Art. VI)
+// rondas reveladas, así que las cartas que contiene ya son públicas (Art. VI). Las fechas se
+// coercionan porque en JSON (GET del historial) llegan como texto ISO
 
 export const historyRoundSchema = z.object({
   roundId: z.string().min(1),
-  revealedAt: z.date(),
+  revealedAt: z.coerce.date(),
   entries: z.array(revealEntrySchema),
 });
 
@@ -15,7 +16,7 @@ export const historyItemSchema = z.object({
   title: z.string(),
   detail: z.string().nullable(),
   estimate: estimateSchema,
-  estimatedAt: z.date(),
+  estimatedAt: z.coerce.date(),
   rounds: z.array(historyRoundSchema),
 });
 

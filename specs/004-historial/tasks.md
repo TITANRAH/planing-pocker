@@ -2,7 +2,7 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-17
-- **Estado:** Aprobado (2026-10-17) · ajustado a la spec v1.1 (2026-10-17)
+- **Estado:** Aprobado (2026-10-17) · ajustado a la spec v1.1 y al plan v1.2 (2026-10-17)
 
 ## Fase 1 — Preparación
 - [x] **T001** shadcn/ui: añadir `accordion`
@@ -76,7 +76,7 @@
   - **Hecho cuando:** el e2e pasa
 
 ## Fase 6 — E2E
-- [ ] **T010** Suite completa estable
+- [x] **T010** Suite completa estable
   - **RF:** todos
   - **Prueba primero:** no aplica; `pnpm test:e2e --repeat-each=3` en verde
   - **Hecho cuando:** pasa 3 veces seguidas sin pruebas inestables
@@ -90,7 +90,21 @@
 | RF-04 | T002, T004, T007 |
 | RF-05 | T002, T003, T008 |
 | RF-06 | T006 |
-| RF-07 | T005, T009 |
+| RF-07 | T005, T009, T011 |
 | RF-08 | T004 |
-| RF-09 | T005, T006 |
+| RF-09 | T005, T006, T011 |
 | RF-10 | T004 |
+
+## Cambio v1.2 (plan) — historial por GET
+- [x] **T011** Ruta `GET /api/rooms/[roomId]/history` y `fetch` en `useRoomHistory`
+  - **RF:** RF-07, RF-09
+  - **Archivos:** `src/lib/schemas/history.ts`, `src/server/http-status.ts`,
+    `src/app/api/rooms/[roomId]/history/route.ts`, `src/app/api/rooms/[roomId]/bye/route.ts`,
+    `src/lib/realtime/use-room-history.ts`, `src/server/rooms.ts`,
+    `tests/unit/schemas/history.test.ts`, `tests/e2e/history.spec.ts`
+  - **Prueba primero:** unit: un `HistoryItem` pasado por `JSON.stringify`/`JSON.parse` vuelve a
+    validar con `historyItemSchema` y conserva sus fechas; e2e: el GET sin sesión → 403, con una
+    sala inexistente → 404 y, con la sesión de un participante, 200 con la lista
+  - **Hecho cuando:** `useRoomHistory` usa `fetch` (sin `getHistory` de `rooms.ts`), la ruta
+    `bye` usa el mapa compartido sin cambiar su comportamiento, y `pnpm lint`, `pnpm typecheck`,
+    las unitarias y `history.spec.ts` están en verde. Después, T010.

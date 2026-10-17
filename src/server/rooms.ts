@@ -61,7 +61,3 @@ export async function setEstimate(input: unknown) {
 export async function revote(input: unknown) {
   return service.revote(input, await requestDeps());
 }
-
-export async function getHistory(roomId: unknown) {
-  return service.getHistory(roomId, await requestDeps());
-}
