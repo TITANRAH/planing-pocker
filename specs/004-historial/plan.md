@@ -1,8 +1,8 @@
 # Plan 004 — Historial de tareas estimadas
 
-- **Spec:** ./spec.md (versión 1.1)
+- **Spec:** ./spec.md (versión 1.2)
 - **Fecha:** 2026-10-17
-- **Estado:** Aprobado (2026-10-17) · versión 1.2
+- **Estado:** Aprobado (2026-10-17) · versión 1.3
 
 ## 1. Resumen técnico
 El historial **no guarda datos nuevos**: un Route Handler de solo lectura,
@@ -12,20 +12,26 @@ genera y descarga en el navegador, sin endpoint. El historial se vuelve a pedir 
 canal y con cada broadcast `estimate` (que ya emite la 003 al fijar, cambiar o borrar una
 estimación), así que no hace falta ningún evento nuevo.
 
+**Borrado (v1.3, RF-11):** una Server Action `deleteHistoryItem`, solo para el moderador, borra
+la tarea y, en cascada, sus rondas, votos y foto (relaciones `onDelete: Cascade` ya existentes).
+El servidor emite un broadcast `historyDeleted` y cada cliente quita la tarea de su lista sin
+pedir de nuevo el historial.
+
 ## 2. Chequeo de constitución
 | Artículo | Cumple | Justificación |
 |---|---|---|
-| I. Primacía de la spec | ✅ | Solo RF-01…RF-10. Sin edición, otros formatos ni integración externa. |
+| I. Primacía de la spec | ✅ | Solo RF-01…RF-11. Sin edición, vaciado total, recuperación, otros formatos ni integración externa. |
 | II. Tipado estricto | ✅ | `HistoryItem` derivado de Zod; cartas validadas con `cardSchema`/`estimateSchema` al leerlas de la BD. |
-| III. UI y formularios | ✅ | shadcn/ui: se añade `accordion` para el detalle de cada tarea; `button`, `badge`. Sin formularios. Mobile-first. |
-| IV. Validación y persistencia | ✅ | La ruta valida `roomId` con Zod y exige sesión activa (cookie); el navegador valida la respuesta con `historyItemSchema`. Sin cambios en el esquema ni migraciones. |
+| III. UI y formularios | ✅ | shadcn/ui: `accordion` para el detalle; `button`, `badge`; `alert-dialog` (ya existe, 003) para confirmar el borrado. Sin formularios. Mobile-first. |
+| IV. Validación y persistencia | ✅ | La ruta valida `roomId` con Zod y exige sesión activa (cookie); el navegador valida la respuesta con `historyItemSchema`. `deleteHistoryItem` valida su entrada con Zod; `historyDeleted` se valida al enviar y al recibir. Sin cambios en el esquema ni migraciones (la cascada ya existe). |
 | V. TDD | ✅ | Matriz §6: unitarias para resumen, CSV y nombre; integración para `getHistory`; e2e para la UI, la descarga y los tiempos. |
-| VI. Integridad del voto | ✅ | `getHistory` **solo** lee rondas `REVEALED` (foto `RevealEntry`), nunca `Vote` ni rondas `OPEN`; prueba de integración específica (RF-08). |
+| VI. Integridad del voto | ✅ | `getHistory` **solo** lee rondas `REVEALED` (foto `RevealEntry`), nunca `Vote` ni rondas `OPEN`; prueba de integración específica (RF-08). VI.3: `deleteHistoryItem` exige `role = MODERATOR` en el servidor (`NOT_MODERATOR`). `historyDeleted` solo lleva `taskId`, sin cartas. |
 
 ## 3. Modelo de datos
 Sin cambios. Se reutilizan `Task.estimate`/`estimatedAt` (hora de la última estimación) y
 `Round` (`status = REVEALED`, `revealedAt`) con `RevealEntry`. El índice `@@index([roomId])` de
-`Task` cubre la consulta.
+`Task` cubre la consulta. Borrar una `Task` borra en cascada sus `Round`, y estas sus `Vote` y
+`RevealEntry`.
 
 ## 4. Contratos
 
@@ -53,6 +59,20 @@ Sin cambios. Se reutilizan `Task.estimate`/`estimatedAt` (hora de la última est
   `estimatedAt` descendente; para cada una, sus rondas `REVEALED` por `revealedAt` ascendente con
   la foto (orden de participantes como en la 003). Una consulta con relaciones anidadas.
 
+**Esquemas Zod (v1.3)** (`src/lib/schemas/history.ts`)
+- `deleteHistoryItemInput` = { roomId: roomIdSchema, taskId: string }
+- `historyDeletedEventSchema` = { taskId: string }
+
+**Server Action** `deleteHistoryItem(input)` (`room-service.ts` + `rooms.ts`)
+- Quién: moderador activo (si no → `NOT_MODERATOR`; sin sesión → `NOT_A_PARTICIPANT`).
+- La tarea debe ser de esa sala y tener estimación (si no → `TASK_NOT_FOUND`, error nuevo).
+- No puede ser la tarea de la ronda actual (`OPEN` o `REVEALED`) (si no → `TASK_IS_CURRENT`, error nuevo).
+- Efecto: borra la tarea (cascada). Broadcast `historyDeleted` { taskId }.
+- `http-status.ts`: `TASK_NOT_FOUND` → 404, `TASK_IS_CURRENT` → 409.
+
+**Realtime (v1.3):** `useRoomHistory` escucha `historyDeleted` y quita la tarea de `items`. El
+moderador la quita también al confirmar la acción, sin esperar al broadcast.
+
 **Realtime:** sin eventos nuevos. `useRoomHistory` se registra en el bus (`useRoomChannel`) y
 hace `fetch` de la ruta al suscribirse y con cada `estimate` recibido (RF-07, RF-09). Quien fija la
 estimación también lo refresca tras la confirmación.
@@ -62,6 +82,11 @@ estimación también lo refresca tras la confirmación.
 |---|---|---|
 | `HistoryPanel` | Sección "Historial": resumen "N tareas · P puntos", botón "Exportar CSV" y lista | vacío: "Todavía no hay tareas estimadas" + exportar desactivado (RF-06); cargando: skeleton |
 | `HistoryItem` (acordeón) | Cabecera "Logout · 3 · 14:32"; al abrir, "Ronda 1", "Ronda 2"…, cada una con cartas, promedio y "¡Consenso!" | — |
+
+| `HistoryPanel` (v1.3) | Moderador: botón "Borrar Login" (icono 🗑) junto a la cabecera de cada fila, salvo la tarea actual; `AlertDialog` "¿Borrar 'Login' del historial?" con "Cancelar" / "Sí, borrar" | jugador: sin botones |
+
+El botón va al lado del disparador del acordeón y no dentro, porque un botón no puede
+contener otro botón. `RoomView` le pasa `isModerator`, `currentTaskId` y `onDelete`.
 
 El botón descarga el CSV en el navegador (Blob + enlace de descarga) con el nombre de
 `historyFileName`.
@@ -79,6 +104,7 @@ El botón descarga el CSV en el navegador (Blob + enlace de descarga) con el nom
 | RF-08 | `getHistory` solo `REVEALED` | integración (tarea estimada con ronda abierta: sin cartas de esa ronda) |
 | RF-09 | GET del historial al suscribirse | unit (ida y vuelta por JSON) · e2e (entra tarde; ruta: 403 sin sesión, 404 sala inexistente, 200 con la lista) |
 | RF-10 | Filtro por `roomId` | integración (dos salas) |
+| RF-11 | `deleteHistoryItem`, `TASK_NOT_FOUND`/`TASK_IS_CURRENT`, broadcast `historyDeleted`, botón + `AlertDialog` | unit (esquemas) · integración `server/history.test.ts` (borra tarea, rondas y foto sin tocar otras; jugador → `NOT_MODERATOR`; tarea actual → `TASK_IS_CURRENT`; otra sala o sin estimación → `TASK_NOT_FOUND`; broadcast con el `taskId`) · e2e `history.spec.ts` (los demás lo ven en ≤ 2 s con "1 tarea · 3 puntos"; cancelar lo conserva; sin botón en la tarea actual ni para jugadores; quien entra después no la ve) |
 
 ## 7. Riesgos y decisiones
 | Decisión | Alternativas descartadas | Motivo |
@@ -88,6 +114,8 @@ El botón descarga el CSV en el navegador (Blob + enlace de descarga) con el nom
 | CSV generado en el navegador | Route Handler que devuelva el archivo | Los datos ya están en el cliente; la hora local de quien exporta (RF-05) es natural ahí. |
 | Refrescar con el broadcast `estimate` | Evento nuevo `history` | `estimate` ya cubre fijar, cambiar y borrar (al volver a votar). **Riesgo:** si se pierde un evento, el historial se corrige al reconectar; se acepta porque el refresco de 15 s de la votación no incluye el historial. |
 | Historial por `GET` (Route Handler) | Server Action (v1.0–v1.1); retrasar la carga | T010: las Server Actions de un navegador van en cola, y pedir el historial al entrar retrasaba ≈ 500 ms el primer voto (1835 ms frente a 1320 ms), con lo que RF-06 de la 002 superaba los 2 s en la suite completa. Un `fetch` no espera en esa cola. |
+| Evento `historyDeleted` y borrado local | Reutilizar `estimate` con `null`; volver a pedir el historial | `estimate` lleva `roundId` y lo aplica el reducer de la votación a la ronda actual; quitar la tarea en local es inmediato (≤ 2 s) y no hace falta otro GET. |
+| Borrado definitivo con cascada | Borrado lógico (`deletedAt`) | La spec pide borrado sin recuperación (clarificación 6); la cascada ya existe y evita una migración. |
 | `accordion` de shadcn para el detalle | `<details>` nativo | Mantiene el sistema visual de shadcn (Art. III) y accesibilidad con teclado. |
 
 ## 8. Historial de cambios
@@ -96,3 +124,4 @@ El botón descarga el CSV en el navegador (Blob + enlace de descarga) con el nom
 | 1.0 | 2026-10-17 | Inicial | Versión inicial |
 | 1.1 | 2026-10-17 | Ajuste por la spec 004 v1.1 | Matriz de RF-01: el cambio de estimación es solo el de la tarea actual. Sin cambios de diseño. |
 | 1.2 | 2026-10-17 | Mejora técnica | El historial se pide con `GET /api/rooms/[roomId]/history` en vez de una Server Action, para no retrasar los votos. Spec sin cambios. |
+| 1.3 | 2026-10-17 | Ajuste por la spec 004 v1.2 | Borrado de tareas del historial por el moderador (RF-11). |

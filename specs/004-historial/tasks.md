@@ -2,7 +2,7 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-17
-- **Estado:** Aprobado (2026-10-17) · ajustado a la spec v1.1 y al plan v1.2 (2026-10-17)
+- **Estado:** Aprobado (2026-10-17) · ajustado a la spec v1.2 y al plan v1.3 (2026-10-17)
 
 ## Fase 1 — Preparación
 - [x] **T001** shadcn/ui: añadir `accordion`
@@ -94,6 +94,7 @@
 | RF-08 | T004 |
 | RF-09 | T005, T006, T011 |
 | RF-10 | T004 |
+| RF-11 | T012, T013, T014, T015 |
 
 ## Cambio v1.2 (plan) — historial por GET
 - [x] **T011** Ruta `GET /api/rooms/[roomId]/history` y `fetch` en `useRoomHistory`
@@ -108,3 +109,38 @@
   - **Hecho cuando:** `useRoomHistory` usa `fetch` (sin `getHistory` de `rooms.ts`), la ruta
     `bye` usa el mapa compartido sin cambiar su comportamiento, y `pnpm lint`, `pnpm typecheck`,
     las unitarias y `history.spec.ts` están en verde. Después, T010.
+
+## Cambio v1.2 (spec) / v1.3 (plan) — borrar del historial
+- [ ] **T012** Esquemas y errores del borrado
+  - **RF:** RF-11
+  - **Archivos:** `src/lib/schemas/history.ts`, `src/server/room-service.ts` (`ActionError`),
+    `src/server/http-status.ts`, `tests/unit/schemas/history.test.ts`
+  - **Prueba primero:** `deleteHistoryItemInput` acepta { roomId, taskId } y rechaza un `roomId`
+    inválido o un `taskId` vacío; `historyDeletedEventSchema` solo acepta { taskId }
+  - **Hecho cuando:** las pruebas pasan y el mapa HTTP incluye los errores nuevos (404 y 409)
+- [ ] **T013** `deleteHistoryItem`
+  - **RF:** RF-11
+  - **Archivos:** `src/server/room-service.ts`, `src/server/rooms.ts`, `src/server/realtime-broadcast.ts`,
+    `tests/integration/server/history.test.ts`
+  - **Prueba primero:** el moderador borra "Login": desaparece del historial junto con sus rondas
+    y su foto, y "Logout" sigue intacta; jugador → `NOT_MODERATOR`; tarea actual →
+    `TASK_IS_CURRENT`; tarea de otra sala o sin estimación → `TASK_NOT_FOUND`; un cliente suscrito
+    recibe `historyDeleted` con el `taskId`
+  - **Hecho cuando:** las pruebas pasan
+- [ ] **T014** `useRoomHistory`: quitar la tarea con `historyDeleted`
+  - **RF:** RF-11
+  - **Archivos:** `src/lib/realtime/use-room-history.ts`
+  - **Prueba primero:** se cubre con el e2e de T015
+  - **Hecho cuando:** valida el payload con Zod, quita la tarea de `items`, ofrece `remove(taskId)`
+    para el moderador y compila sin `any`
+- [ ] **T015** Botón de borrar con confirmación
+  - **RF:** RF-11
+  - **Archivos:** `src/components/history-panel.tsx`, `src/components/room-view.tsx`, `tests/e2e/history.spec.ts`
+  - **Prueba primero:** con "Logout · 3" y "Login · 5", el moderador pulsa "Borrar Login",
+    cancela (sigue) y después confirma: Beto ve solo "Logout · 3" y "1 tarea · 3 puntos" en ≤ 2 s;
+    la fila de la tarea actual no tiene botón; Beto no ve botones; Dani, que entra después, no ve "Login"
+  - **Hecho cuando:** el e2e pasa
+- [ ] **T016** Suite completa estable tras el cambio
+  - **RF:** todos
+  - **Prueba primero:** no aplica; `pnpm test:e2e --repeat-each=3` en verde
+  - **Hecho cuando:** pasa 3 veces seguidas sin pruebas inestables
