@@ -14,7 +14,7 @@
   - **Hecho cuando:** la migración se aplica en Supabase dev y la prueba pasa
 
 ## Fase 2 — Dominio
-- [ ] **T002** [P] `summarizeRound` y `formatAverage`
+- [x] **T002** [P] `summarizeRound` y `formatAverage`
   - **RF:** RF-04, RF-05, RF-06, RF-07
   - **Archivos:** `src/lib/domain/reveal.ts`, `tests/unit/domain/reveal.test.ts`
   - **Prueba primero:** 3, 5, 8 y "?" → promedio 5,33 ("5,3"), mín. 3, máx. 8; 5 y 5 → "5,0"; solo
@@ -22,14 +22,14 @@
     "?"; sin consenso con un solo voto; sugerencia 5,3 → "5"; 6,5 → "8" (empate → la mayor);
     los "No votó" no cuentan
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T003** [P] Esquemas Zod de revelado
+- [x] **T003** [P] Esquemas Zod de revelado
   - **RF:** RF-07, RF-12
   - **Archivos:** `src/lib/schemas/reveal.ts`, `tests/unit/schemas/reveal.test.ts`
   - **Prueba primero:** `estimateSchema` acepta solo cartas numéricas (rechaza "?", "☕", "4");
     `revoteInput.confirm` es falso por defecto; `revealEventSchema` acepta cartas y `null`, y
     rechaza cartas fuera de la baraja; `estimateEventSchema` acepta `null`
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T004** Reducer de votación ampliado: fase, foto y estimación
+- [x] **T004** Reducer de votación ampliado: fase, foto y estimación
   - **RF:** RF-02, RF-03, RF-07, RF-08, RF-10
   - **Archivos:** `src/lib/realtime/voting.ts`, `tests/unit/realtime/voting.test.ts`
   - **Prueba primero:** el estado completo de una ronda revelada inicializa la fase `revealed`,

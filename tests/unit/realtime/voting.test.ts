@@ -110,3 +110,75 @@ describe("votingReducer", () => {
     expect(votingReducer(state, { type: "task", payload: { roundId: "r2" } })).toBe(state);
   });
 });
+
+describe("votingReducer con revelado", () => {
+  const entries = [
+    { participantId: "a", nickname: "Ana", card: "5" as const },
+    { participantId: "b", nickname: "Beto", card: null },
+  ];
+
+  it("RF-10: el estado completo de una ronda revelada trae la fase, la foto y la estimación", () => {
+    const state = initialVotingState({
+      task,
+      round: { id: "r1", status: "REVEALED" },
+      voted: [],
+      myVote: null,
+      entries,
+      estimate: "8",
+    });
+    expect(state).toMatchObject({ phase: "revealed", entries, estimate: "8" });
+  });
+
+  it("RF-02: una ronda abierta empieza en fase 'open', sin foto ni estimación", () => {
+    expect(start()).toMatchObject({ phase: "open", entries: [], estimate: null });
+  });
+
+  it("RF-01/RF-03: el evento reveal de la ronda actual muestra la foto y cierra la ronda", () => {
+    const state = votingReducer(start(), { type: "reveal", payload: { roundId: "r1", entries } });
+    expect(state).toMatchObject({ phase: "revealed", entries, myVote: null });
+  });
+
+  it("RF-01: un reveal de otra ronda o inválido se ignora", () => {
+    const state = start();
+    expect(votingReducer(state, { type: "reveal", payload: { roundId: "vieja", entries } })).toBe(
+      state,
+    );
+    expect(votingReducer(state, { type: "reveal", payload: { roundId: "r1" } })).toBe(state);
+  });
+
+  it("RF-07: el evento estimate fija o borra la estimación de la ronda actual", () => {
+    let state = votingReducer(start(), { type: "reveal", payload: { roundId: "r1", entries } });
+    state = votingReducer(state, {
+      type: "estimate",
+      payload: { taskId: "t1", roundId: "r1", estimate: "8" },
+    });
+    expect(state.estimate).toBe("8");
+    state = votingReducer(state, {
+      type: "estimate",
+      payload: { taskId: "t1", roundId: "r1", estimate: null },
+    });
+    expect(state.estimate).toBeNull();
+    expect(
+      votingReducer(state, {
+        type: "estimate",
+        payload: { taskId: "t1", roundId: "otra", estimate: "3" },
+      }),
+    ).toBe(state);
+  });
+
+  it("RF-08: volver a votar (tarea con ronda nueva) vuelve a 'open' y borra foto y estimación", () => {
+    let state = votingReducer(start(), { type: "reveal", payload: { roundId: "r1", entries } });
+    state = votingReducer(state, {
+      type: "estimate",
+      payload: { taskId: "t1", roundId: "r1", estimate: "8" },
+    });
+    state = votingReducer(state, { type: "task", payload: { roundId: "r2", task } });
+    expect(state).toMatchObject({
+      phase: "open",
+      roundId: "r2",
+      entries: [],
+      estimate: null,
+      voted: [],
+    });
+  });
+});
