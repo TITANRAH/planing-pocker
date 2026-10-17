@@ -5,7 +5,7 @@
 - **Estado:** Aprobado (2026-10-17)
 
 ## Fase 1 — Preparación
-- [ ] **T001** shadcn/ui: añadir `accordion`
+- [x] **T001** shadcn/ui: añadir `accordion`
   - **RF:** —
   - **Archivos:** `src/components/ui/accordion.tsx`
   - **Prueba primero:** no aplica; se verifica con lint y typecheck (sin sobrescribir componentes existentes)
