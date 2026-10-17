@@ -1,6 +1,6 @@
 # Spec 004 — Historial de tareas estimadas
 
-- **Estado:** En implementación (aprobada el 2026-10-17; cambio v1.2)
+- **Estado:** Implementada (aprobada el 2026-10-17; cambio v1.2 verificado el 2026-10-17)
 - **Versión:** 1.2
 - **Fecha:** 2026-10-17
 
