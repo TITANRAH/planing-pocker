@@ -1,12 +1,23 @@
 "use client";
 
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -22,6 +33,10 @@ type Props = {
   roomName: string;
   // null mientras carga por primera vez
   items: HistoryItem[] | null;
+  // RF-11: solo el moderador borra, y nunca la tarea actual
+  isModerator: boolean;
+  currentTaskId: string | null;
+  onDelete: (taskId: string) => void;
 };
 
 // RF-05: el CSV se genera y descarga en el navegador, con la hora local de quien exporta
@@ -52,7 +67,8 @@ function RoundDetail({ round, index }: { round: HistoryRound; index: number }) {
 }
 
 // Historial de la sala (spec 004): tareas con estimación, resumen, detalle y exportación
-export function HistoryPanel({ roomName, items }: Props) {
+export function HistoryPanel({ roomName, items, isModerator, currentTaskId, onDelete }: Props) {
+  const [deleting, setDeleting] = useState<HistoryItem | null>(null);
   const summary = historySummary(items ?? []);
   const empty = items !== null && items.length === 0;
 
@@ -85,11 +101,27 @@ export function HistoryPanel({ roomName, items }: Props) {
           <Accordion>
             {items.map((item) => (
               <AccordionItem key={item.taskId} value={item.taskId}>
-                <AccordionTrigger className="min-w-0">
-                  <span className="truncate">
-                    {item.title} · {item.estimate} · {formatHistoryTime(item.estimatedAt)}
-                  </span>
-                </AccordionTrigger>
+                {/* El botón de borrar va junto al disparador: un botón no puede contener otro */}
+                <div className="flex items-center gap-1">
+                  <div className="min-w-0 flex-1">
+                    <AccordionTrigger className="min-w-0">
+                      <span className="truncate">
+                        {item.title} · {item.estimate} · {formatHistoryTime(item.estimatedAt)}
+                      </span>
+                    </AccordionTrigger>
+                  </div>
+                  {isModerator && item.taskId !== currentTaskId && (
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Borrar ${item.title}`}
+                      onClick={() => setDeleting(item)}
+                    >
+                      <Trash2Icon aria-hidden />
+                    </Button>
+                  )}
+                </div>
                 <AccordionContent>
                   <div className="flex flex-col gap-2 text-sm">
                     {item.detail && <p className="wrap-anywhere">{item.detail}</p>}
@@ -103,6 +135,31 @@ export function HistoryPanel({ roomName, items }: Props) {
           </Accordion>
         </>
       )}
+
+      <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              ¿Borrar &apos;{deleting?.title}&apos; del historial?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borrarán la tarea y sus rondas para todos. No se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleting) onDelete(deleting.taskId);
+                setDeleting(null);
+              }}
+            >
+              Sí, borrar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

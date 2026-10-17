@@ -8,7 +8,15 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 // (spec 002) y el revelado (spec 003). Funciona como un bus: el canal se suscribe una vez y
 // reparte cada evento a los hooks que se hayan registrado con `on` (plan 002, §4).
 
-const BROADCAST_EVENTS = ["hello", "bye", "task", "vote", "reveal", "estimate"] as const;
+const BROADCAST_EVENTS = [
+  "hello",
+  "bye",
+  "task",
+  "vote",
+  "reveal",
+  "estimate",
+  "historyDeleted",
+] as const;
 export type BroadcastEvent = (typeof BROADCAST_EVENTS)[number];
 
 type ChannelEvents = {

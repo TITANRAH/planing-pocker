@@ -13,4 +13,6 @@ export const HTTP_STATUS: Record<ActionError, number> = {
   NO_VOTES: 409,
   ROUND_NOT_REVEALED: 409,
   ESTIMATE_PRESENT: 409,
+  TASK_NOT_FOUND: 404,
+  TASK_IS_CURRENT: 409,
 };

@@ -4,6 +4,7 @@ import {
   type PresencePayload,
   presencePayloadSchema,
 } from "@/lib/schemas/room";
+import { type HistoryDeletedEvent, historyDeletedEventSchema } from "@/lib/schemas/history";
 import {
   type EstimateEvent,
   estimateEventSchema,
@@ -44,4 +45,9 @@ export function revealEventPayload(input: unknown): RevealEvent {
 
 export function estimateEventPayload(input: unknown): EstimateEvent {
   return estimateEventSchema.parse(input);
+}
+
+// Broadcast del borrado de una tarea del historial (spec 004, RF-11): solo el id, sin cartas
+export function historyDeletedEventPayload(input: unknown): HistoryDeletedEvent {
+  return historyDeletedEventSchema.parse(input);
 }

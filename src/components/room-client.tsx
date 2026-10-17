@@ -29,13 +29,15 @@ function statusForError(error: ActionError): Status {
     case "ROOM_NOT_FOUND":
     case "VALIDATION":
       return { kind: "not-found" };
-    // Errores de votación: no llegan al cargar la sala
+    // Errores de votación y del historial: no llegan al cargar la sala
     case "NOT_MODERATOR":
     case "VOTES_PRESENT":
     case "ROUND_CLOSED":
     case "NO_VOTES":
     case "ROUND_NOT_REVEALED":
     case "ESTIMATE_PRESENT":
+    case "TASK_NOT_FOUND":
+    case "TASK_IS_CURRENT":
       return { kind: "error" };
   }
 }

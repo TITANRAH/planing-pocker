@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { historyItemSchema } from "@/lib/schemas/history";
+import {
+  deleteHistoryItemInput,
+  historyDeletedEventSchema,
+  historyItemSchema,
+} from "@/lib/schemas/history";
 
 const item = {
   taskId: "t1",
@@ -44,5 +48,23 @@ describe("historyItemSchema", () => {
       ],
     };
     expect(historyItemSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe("borrado del historial", () => {
+  it("RF-11: deleteHistoryItemInput acepta { roomId, taskId } y rechaza datos inválidos", () => {
+    expect(deleteHistoryItemInput.safeParse({ roomId: "AbCdEf123_-x", taskId: "t1" }).success).toBe(
+      true,
+    );
+    expect(deleteHistoryItemInput.safeParse({ roomId: "corto", taskId: "t1" }).success).toBe(false);
+    expect(deleteHistoryItemInput.safeParse({ roomId: "AbCdEf123_-x", taskId: "" }).success).toBe(
+      false,
+    );
+  });
+
+  it("RF-11: historyDeletedEventSchema solo acepta { taskId }", () => {
+    expect(historyDeletedEventSchema.safeParse({ taskId: "t1" }).success).toBe(true);
+    expect(historyDeletedEventSchema.safeParse({ taskId: "" }).success).toBe(false);
+    expect(historyDeletedEventSchema.safeParse({ taskId: "t1", card: "5" }).success).toBe(false);
   });
 });

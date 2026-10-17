@@ -23,7 +23,7 @@ import { hasVoted, voteCount } from "@/lib/realtime/voting";
 import type { NumericCard } from "@/lib/schemas/reveal";
 import type { PresencePayload } from "@/lib/schemas/room";
 import type { RoomState } from "@/server/room-service";
-import { revealRound, revote, setEstimate } from "@/server/rooms";
+import { deleteHistoryItem, revealRound, revote, setEstimate } from "@/server/rooms";
 
 type Props = {
   state: RoomState;
@@ -88,6 +88,13 @@ export function RoomView({ state, onExpired }: Props) {
     } else await voting.refresh();
   }
 
+  // RF-11: el moderador quita la tarea al confirmarse el borrado, sin esperar al broadcast
+  async function deleteFromHistory(taskId: string) {
+    const result = await deleteHistoryItem({ roomId: state.room.id, taskId });
+    if (result.ok) history.remove(taskId);
+    else history.refresh();
+  }
+
   return (
     <Card className="w-full min-w-0 max-w-md">
       <CardHeader className="min-w-0 gap-3">
@@ -134,7 +141,13 @@ export function RoomView({ state, onExpired }: Props) {
         {!revealed && <VoteCounter voted={count.voted} total={count.total} />}
         <ParticipantList participants={listed} />
         <Separator />
-        <HistoryPanel roomName={state.room.name} items={history.items} />
+        <HistoryPanel
+          roomName={state.room.name}
+          items={history.items}
+          isModerator={isModerator}
+          currentTaskId={task?.id ?? null}
+          onDelete={(taskId) => void deleteFromHistory(taskId)}
+        />
       </CardContent>
     </Card>
   );

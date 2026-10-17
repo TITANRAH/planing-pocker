@@ -61,3 +61,7 @@ export async function setEstimate(input: unknown) {
 export async function revote(input: unknown) {
   return service.revote(input, await requestDeps());
 }
+
+export async function deleteHistoryItem(input: unknown) {
+  return service.deleteHistoryItem(input, await requestDeps());
+}

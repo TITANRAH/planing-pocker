@@ -165,4 +165,47 @@ test.describe("historial", () => {
     ).toBe(404);
     await stranger.close();
   });
+
+  test("RF-11: el moderador borra una tarea del historial con confirmación y todos lo ven en 2 s o menos", async ({
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+    const { ana, beto, url } = await room(browser, "e2e-hist-borrar");
+    await estimateViaUi(ana, beto, "Login", ["5", "5"], "5");
+    await estimateViaUi(ana, beto, "Logout", ["3", "3"], "3");
+    await expect(historyItem(beto, "Logout · 3")).toBeVisible();
+    const deleteButton = (page: Page, title: string) =>
+      history(page).getByRole("button", { name: `Borrar ${title}`, exact: true });
+
+    // La tarea actual (Logout) no se borra desde el historial; el jugador no ve botones
+    await expect(deleteButton(ana, "Login")).toBeVisible();
+    await expect(deleteButton(ana, "Logout")).toHaveCount(0);
+    await expect(history(beto).getByRole("button", { name: /^Borrar / })).toHaveCount(0);
+
+    // Con otra tarea en curso, Logout ya se puede borrar
+    await ana.getByRole("button", { name: "Nueva tarea" }).click();
+    await ana.getByLabel("Título de la tarea").fill("Signup");
+    await ana.getByRole("button", { name: "Empezar votación" }).click();
+    await expect(beto.getByRole("heading", { name: "Signup" })).toBeVisible();
+    await expect(deleteButton(ana, "Logout")).toBeVisible();
+
+    // Cancelar conserva la tarea
+    await deleteButton(ana, "Login").click();
+    const dialog = ana.getByRole("alertdialog");
+    await expect(dialog.getByText("¿Borrar 'Login' del historial?")).toBeVisible();
+    await dialog.getByRole("button", { name: "Cancelar" }).click();
+    await expect(historyItem(ana, "Login · 5")).toBeVisible();
+
+    // Confirmar la borra para todos
+    await deleteButton(ana, "Login").click();
+    await ana.getByRole("alertdialog").getByRole("button", { name: "Sí, borrar" }).click();
+    await expect(historyItem(beto, "Login · 5")).toHaveCount(0, { timeout: 2_000 });
+    await expect(history(beto).getByText("1 tarea · 3 puntos")).toBeVisible({ timeout: 2_000 });
+    await expect(historyItem(ana, "Login · 5")).toHaveCount(0);
+
+    // Quien entra después no la ve
+    const dani = await joinViaUi(browser, url, "Dani");
+    await expect(historyItem(dani, "Logout · 3")).toBeVisible();
+    await expect(historyItem(dani, "Login · 5")).toHaveCount(0);
+  });
 });

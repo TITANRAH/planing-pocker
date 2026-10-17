@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RoomChannel } from "@/lib/realtime/use-room-channel";
 import { z } from "zod";
-import { type HistoryItem, historyItemSchema } from "@/lib/schemas/history";
+import {
+  type HistoryItem,
+  historyDeletedEventSchema,
+  historyItemSchema,
+} from "@/lib/schemas/history";
 
 type Options = { channel: RoomChannel; roomId: string };
 
@@ -11,6 +15,8 @@ export type RoomHistory = {
   // null mientras carga por primera vez
   items: HistoryItem[] | null;
   refresh: () => void;
+  // Quita una tarea borrada (RF-11), sin volver a pedir el historial
+  remove: (taskId: string) => void;
 };
 
 const historyResponseSchema = z.array(historyItemSchema);
@@ -55,12 +61,24 @@ export function useRoomHistory({ channel, roomId }: Options): RoomHistory {
     })();
   }, [roomId]);
 
+  const remove = useCallback((taskId: string) => {
+    setItems((current) => current?.filter((item) => item.taskId !== taskId) ?? current);
+  }, []);
+
   useEffect(() => {
-    const unsubscribe = [channel.on("subscribed", refresh), channel.on("estimate", refresh)];
+    const onDeleted = (payload: unknown) => {
+      const parsed = historyDeletedEventSchema.safeParse(payload);
+      if (parsed.success) remove(parsed.data.taskId);
+    };
+    const unsubscribe = [
+      channel.on("subscribed", refresh),
+      channel.on("estimate", refresh),
+      channel.on("historyDeleted", onDeleted),
+    ];
     return () => {
       for (const off of unsubscribe) off();
     };
-  }, [channel, refresh]);
+  }, [channel, refresh, remove]);
 
-  return { items, refresh };
+  return { items, refresh, remove };
 }

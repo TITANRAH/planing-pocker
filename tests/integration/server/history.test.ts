@@ -1,7 +1,10 @@
+import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it } from "vitest";
+import { db } from "@/server/db";
 import {
   castVote,
   createRoom,
+  deleteHistoryItem,
   getHistory,
   joinRoom,
   newTask,
@@ -155,5 +158,93 @@ describe("getHistory", () => {
       ok: false,
       error: "ROOM_NOT_FOUND",
     });
+  });
+});
+
+describe("deleteHistoryItem", () => {
+  // Login y Logout estimadas; la tarea actual es Signup (ronda abierta)
+  async function withTwo(label: string) {
+    const r = await setup(label);
+    const login = await r.estimate("Login", ["5", "5"], "5", at(1 * SEC));
+    const logout = await r.estimate("Logout", ["3", "3"], "3", at(2 * SEC));
+    const signup = await newTask({ roomId: r.roomId, title: "Signup" }, r.deps(r.mod, at(3 * SEC)));
+    if (!signup.ok) throw new Error(signup.error);
+    return { ...r, login, logout };
+  }
+
+  it("RF-11: el moderador borra la tarea con sus rondas y su foto, sin tocar las demás", async () => {
+    const r = await withTwo("borrar");
+    const result = await deleteHistoryItem(
+      { roomId: r.roomId, taskId: r.login.taskId },
+      r.deps(r.mod),
+    );
+    expect(result).toEqual({ ok: true, data: { taskId: r.login.taskId } });
+    expect((await r.history()).map((i) => i.title)).toEqual(["Logout"]);
+    expect(await db.task.count({ where: { id: r.login.taskId } })).toBe(0);
+    expect(await db.round.count({ where: { taskId: r.login.taskId } })).toBe(0);
+    expect(await db.revealEntry.count({ where: { roundId: r.login.roundId } })).toBe(0);
+    expect(await db.revealEntry.count({ where: { roundId: r.logout.roundId } })).toBe(2);
+  });
+
+  it("RF-11: un jugador no puede borrar", async () => {
+    const r = await withTwo("jugador");
+    expect(
+      await deleteHistoryItem({ roomId: r.roomId, taskId: r.login.taskId }, r.deps(r.ana)),
+    ).toEqual({ ok: false, error: "NOT_MODERATOR" });
+    expect(await r.history()).toHaveLength(2);
+  });
+
+  it("RF-11: la tarea actual no se borra desde el historial", async () => {
+    const r = await setup("actual");
+    const login = await r.estimate("Login", ["5", "5"], "5", at(1 * SEC));
+    expect(
+      await deleteHistoryItem({ roomId: r.roomId, taskId: login.taskId }, r.deps(r.mod)),
+    ).toEqual({ ok: false, error: "TASK_IS_CURRENT" });
+    expect(await r.history()).toHaveLength(1);
+  });
+
+  it("RF-11: una tarea de otra sala o sin estimación no se encuentra", async () => {
+    const r = await withTwo("ajena");
+    const other = await setup("ajena-otra");
+    const foreign = await other.estimate("Ajena", ["8", "8"], "8");
+    await newTask({ roomId: other.roomId, title: "Siguiente" }, other.deps(other.mod, at(SEC)));
+    expect(
+      await deleteHistoryItem({ roomId: r.roomId, taskId: foreign.taskId }, r.deps(r.mod)),
+    ).toEqual({ ok: false, error: "TASK_NOT_FOUND" });
+
+    const pending = await r.estimate("Sin estimar", ["1", "2"], null, at(4 * SEC));
+    await newTask({ roomId: r.roomId, title: "Otra" }, r.deps(r.mod, at(5 * SEC)));
+    expect(
+      await deleteHistoryItem({ roomId: r.roomId, taskId: pending.taskId }, r.deps(r.mod)),
+    ).toEqual({ ok: false, error: "TASK_NOT_FOUND" });
+    expect(await other.history(other.ana)).toHaveLength(1);
+  }, 60_000);
+
+  it("RF-11: avisa por broadcast con el id de la tarea borrada", async () => {
+    const r = await withTwo("broadcast");
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
+      { auth: { persistSession: false } },
+    );
+    const messages: unknown[] = [];
+    const channel = supabase.channel(`room:${r.roomId}`);
+    channel.on("broadcast", { event: "historyDeleted" }, ({ payload }) => messages.push(payload));
+    await new Promise<void>((resolve, reject) => {
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") resolve();
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") reject(new Error(status));
+      });
+    });
+    try {
+      await deleteHistoryItem({ roomId: r.roomId, taskId: r.login.taskId }, r.deps(r.mod));
+      const start = Date.now();
+      while (messages.length < 1 && Date.now() - start < 5_000) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(messages).toEqual([{ taskId: r.login.taskId }]);
+    } finally {
+      await supabase.removeAllChannels();
+    }
   });
 });

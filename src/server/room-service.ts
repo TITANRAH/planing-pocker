@@ -3,6 +3,7 @@ import { generateRoomId } from "@/lib/domain/room-id";
 import {
   byePayload,
   estimateEventPayload,
+  historyDeletedEventPayload,
   revealEventPayload,
   taskEventPayload,
   voteEventPayload,
@@ -29,7 +30,7 @@ import {
   revoteInput,
   setEstimateInput,
 } from "@/lib/schemas/reveal";
-import { type HistoryItem, historyItemSchema } from "@/lib/schemas/history";
+import { type HistoryItem, historyItemSchema, deleteHistoryItemInput } from "@/lib/schemas/history";
 import {
   type Card,
   cardSchema,
@@ -58,7 +59,9 @@ export type ActionError =
   | "ROUND_CLOSED"
   | "NO_VOTES"
   | "ROUND_NOT_REVEALED"
-  | "ESTIMATE_PRESENT";
+  | "ESTIMATE_PRESENT"
+  | "TASK_NOT_FOUND"
+  | "TASK_IS_CURRENT";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ActionError };
 
@@ -809,4 +812,31 @@ export async function getHistory(
     }),
   );
   return { ok: true, data: items };
+}
+
+// RF-11: el moderador borra una tarea del historial, con sus rondas, votos y foto (cascada). No
+// se borra la tarea actual: su estimación se quita con "Volver a votar" (spec 003, RF-08)
+export async function deleteHistoryItem(
+  input: unknown,
+  { jar, now }: Deps,
+): Promise<ActionResult<{ taskId: string }>> {
+  const parsed = deleteHistoryItemInput.safeParse(input);
+  if (!parsed.success) return fail("VALIDATION");
+  const { roomId, taskId } = parsed.data;
+  const [self, task, round] = await Promise.all([
+    findActiveSelf(db, roomId, jar, now),
+    db.task.findFirst({
+      where: { id: taskId, roomId, estimate: { not: null } },
+      select: { id: true },
+    }),
+    currentRound(roomId),
+  ]);
+  if (!self.ok) return self;
+  if (self.data.role !== "MODERATOR") return fail("NOT_MODERATOR");
+  if (!task) return fail("TASK_NOT_FOUND");
+  if (round?.taskId === taskId) return fail("TASK_IS_CURRENT");
+
+  await db.task.delete({ where: { id: taskId } });
+  await broadcastToRoom(roomId, "historyDeleted", historyDeletedEventPayload({ taskId }));
+  return { ok: true, data: { taskId } };
 }
