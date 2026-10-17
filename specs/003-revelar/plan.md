@@ -2,7 +2,7 @@
 
 - **Spec:** ./spec.md (versión 1.0)
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16) · versión 1.0
+- **Estado:** Aprobado (2026-10-16) · versión 1.1
 
 ## 1. Resumen técnico
 Una ronda pasa de `OPEN` a `REVEALED` en una transacción que guarda una **foto fija** de la ronda:
@@ -113,7 +113,7 @@ lo permite.
 | `EstimatePicker` (moderador) | Cartas numéricas con la sugerida marcada; "Fijar estimación" | sin sugerencia (RF-07) |
 | `EstimateBadge` | "Estimación final: 8" | sin estimación |
 | "Volver a votar" (moderador) | `AlertDialog` si hay estimación: "Se borrará la estimación final: 8" | — |
-| `CardDeck` | Desactivada con la ronda revelada (RF-02) | — |
+| `CardDeck` | Solo se muestra con la ronda abierta; con la ronda revelada se oculta (RF-02) | — |
 
 Sin moderador (RF-13): no aparecen `RevealButton`, `EstimatePicker` ni "Volver a votar".
 
@@ -142,8 +142,10 @@ Sin moderador (RF-13): no aparecen `RevealButton`, `EstimatePicker` ni "Volver a
 | Resumen calculado (función pura) | Guardarlo en la BD | Se deduce de la foto; evita incoherencias y se prueba en unitarias. |
 | Broadcast `reveal` con las cartas | Solo `{ roundId }` y que cada cliente pida el estado | Una consulta menos por cliente para cumplir ≤ 2 s. Las cartas ya son públicas tras revelar (Art. VI). El canal sigue siendo público, como en la 001/002: quien tenga el link puede verlas, igual que entrando a la sala. |
 | Estimación en `Task` | En `Round` | La spec habla de "la estimación final de la tarea"; volver a votar la borra (RF-08). |
+| Ocultar la baraja de votación con la ronda revelada | Desactivarla (v1.0); plegarla | Verificación 003: con la baraja desactivada debajo del selector de estimación, el moderador veía dos rejillas de cartas casi iguales. Ocultarla elimina la confusión sin añadir controles; reaparece al volver a votar o con una tarea nueva. |
 
 ## 8. Historial de cambios
 | Versión | Fecha | Tipo | Cambio |
 |---|---|---|---|
 | 1.0 | 2026-10-16 | Inicial | Versión inicial |
+| 1.1 | 2026-10-17 | Mejora técnica (UI) | La baraja de votación se oculta mientras la ronda está revelada. Spec sin cambios. |

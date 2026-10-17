@@ -2,7 +2,7 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-16
-- **Estado:** Aprobado (2026-10-16)
+- **Estado:** Aprobado (2026-10-16) · cambio v1.1 aprobado (2026-10-17)
 
 ## Fase 1 — Preparación
 - [x] **T001** Prisma: estado `REVEALED`, `revealedAt`, modelo `RevealEntry`, estimación en `Task` + migración `reveal`
@@ -130,7 +130,7 @@
 | RF | Tareas |
 |---|---|
 | RF-01 | T006, T010, T011, T012 |
-| RF-02 | T004, T005, T012 |
+| RF-02 | T004, T005, T012, T017 |
 | RF-03 | T004, T006, T009, T012 |
 | RF-04 | T002, T012 |
 | RF-05 | T002, T012 |
@@ -142,3 +142,15 @@
 | RF-11 | T006, T009 |
 | RF-12 | T003, T005, T006, T007, T008 |
 | RF-13 | T006, T007, T008, T015 |
+
+## Cambio v1.1 — Ocultar la baraja con la ronda revelada
+
+- [x] **T017** Ocultar la baraja de votación mientras la ronda está revelada
+  - **RF:** RF-02
+  - **Archivos:** `tests/e2e/reveal.spec.ts`, `src/components/room-view.tsx`
+  - **Prueba primero (cambio de prueba aprobado):** en "RF-01 a RF-05", tras revelar, la baraja
+    de votación (grupo "Cartas") **no se muestra**, en lugar de comprobar que la carta "3" está
+    desactivada. En "RF-08", al volver a votar, la baraja **vuelve a mostrarse** y se puede usar
+  - **Hecho cuando:** los e2e de revelado y de votación pasan y una captura en móvil muestra una
+    sola rejilla de cartas tras revelar
+

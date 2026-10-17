@@ -69,8 +69,8 @@ test.describe("revelar", () => {
       await expect(page.getByText("Promedio: 6,5")).toBeVisible();
       await expect(page.getByText("Mínimo: 5")).toBeVisible();
       await expect(page.getByText("Máximo: 8")).toBeVisible();
-      // RF-02: la ronda revelada queda cerrada
-      await expect(card(page, "3")).toBeDisabled();
+      // RF-02: la ronda revelada queda cerrada; la baraja de votación no se muestra (plan v1.1)
+      await expect(page.getByRole("group", { name: "Cartas" })).toHaveCount(0);
     }
   });
 

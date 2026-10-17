@@ -117,11 +117,10 @@ export function RoomView({ state, onExpired }: Props) {
             )}
           </section>
         )}
-        <CardDeck
-          myVote={voting.state.myVote}
-          enabled={roundId !== null && !revealed}
-          onVote={voting.vote}
-        />
+        {/* Con la ronda revelada la baraja se oculta: no se puede votar (RF-02, plan 003 v1.1) */}
+        {!revealed && (
+          <CardDeck myVote={voting.state.myVote} enabled={roundId !== null} onVote={voting.vote} />
+        )}
         {isModerator && roundId !== null && !revealed && (
           <RevealButton hasVotes={voting.state.voted.length > 0} onReveal={reveal} />
         )}

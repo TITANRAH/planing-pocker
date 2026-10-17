@@ -1,8 +1,8 @@
 # Verificación 003 — Revelar, consensuar y repetir
 
-- **Fecha:** 2026-10-16
-- **Spec verificada:** versión 1.0 (plan v1.0)
-- **Tareas:** las 16 hechas (T001–T016)
+- **Fecha:** 2026-10-17 (reverificación tras el cambio v1.1)
+- **Spec verificada:** versión 1.0 (plan v1.1)
+- **Tareas:** las 17 hechas (T001–T017)
 - **Resultado:** ✅ Aprobada
 
 ## 1. Comandos
@@ -11,7 +11,7 @@
 | `pnpm lint` | ✅ | ESLint sin errores ni avisos (`--max-warnings=0`) |
 | `pnpm typecheck` | ✅ | `next typegen` + `tsc --noEmit` sin errores |
 | `pnpm test` | ✅ | 18 archivos, 176 pruebas (unit + integración contra Supabase dev) |
-| `pnpm test:e2e` | ✅ | 37 pruebas (001 + 002 + 003) contra el build de producción, 2 workers. En T016: 111/111 con `--repeat-each=3` |
+| `pnpm test:e2e` | ✅ | 37 pruebas (001 + 002 + 003) contra el build de producción, 2 workers. En T016: 111/111 con `--repeat-each=3`; tras T017, 37/37 |
 
 ## 2. Matriz RF → prueba
 Contada en los archivos de pruebas de la 003 (los ID de RF se repiten entre specs). En
@@ -22,7 +22,7 @@ RF-03 y RF-04, que se indican aparte.
 | RF | Prueba(s) | Resultado |
 |---|---|---|
 | RF-01 Revelar (≤ 2 s) | unit (2) · integración (2) · e2e (3: botón desactivado sin votos, todos ven las cartas en ≤ 2 s, la carta llega solo tras revelar) | ✅ |
-| RF-02 Ronda cerrada | unit (1) · integración (2: no se revela dos veces, voto tras revelar → `ROUND_CLOSED`) · e2e (cartas desactivadas tras revelar, dentro de "RF-01 a RF-05") | ✅ |
+| RF-02 Ronda cerrada | unit (1) · integración (2: no se revela dos veces, voto tras revelar → `ROUND_CLOSED`) · e2e (la baraja de votación no se muestra tras revelar, dentro de "RF-01 a RF-05"; reaparece al volver a votar, en RF-08) | ✅ |
 | RF-03 Carta de cada uno | unit (2) · integración (2: foto con "No votó"; quien entra después no aparece) · e2e (1, más "Carla: No votó" en "RF-01 a RF-05") | ✅ |
 | RF-04 Promedio | unit (4: "5,3", "5,0", sin numéricas, "No votó" no cuenta) · e2e ("Promedio: 6,5" en "RF-01 a RF-05") | ✅ |
 | RF-05 Mínimo y máximo | unit (1) · e2e (1) | ✅ |
@@ -52,10 +52,9 @@ modelo de datos (T001, `reveal-db.test.ts`).
 Sin problemas que incumplan la spec o la constitución.
 
 ## 5. Observaciones
-- **Usabilidad (propuesta de mejora):** tras revelar, la baraja de votación desactivada sigue
-  visible debajo del selector de estimación, así que el moderador ve dos rejillas de cartas casi
-  iguales. Cumple RF-02 (la baraja queda cerrada), pero se entendería mejor ocultándola o
-  plegándola mientras la ronda está revelada. Iría por `sdd-change` (cambio de la UI, plan 003).
+- **Usabilidad (resuelta en el cambio v1.1):** tras revelar se veían dos rejillas de cartas casi
+  iguales (la baraja de votación desactivada y el selector de estimación). Con T017 la baraja se
+  oculta mientras la ronda está revelada; comprobado en móvil (390 px) con una sola rejilla.
 - **Los ID de RF se repiten entre specs** (ya anotado en la verificación de la 002); la matriz
   tuvo que filtrarse por archivo y por bloque. Sigue pendiente la propuesta de citar
   `NNN/RF-NN` en las pruebas, que requiere una enmienda.
