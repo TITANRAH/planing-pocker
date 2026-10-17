@@ -13,7 +13,8 @@ a la vez para discutir y acordar la estimación final.
 - **Acceso:** link de la sala + apodo. Quien crea la sala es el **moderador**.
 - **Baraja:** Fibonacci → `0, 1, 2, 3, 5, 8, 13, 21, ?, ☕`
 - **Persistencia:** se guardan salas, tareas y estimaciones finales (historial).
-- **Despliegue:** Vercel.
+- **Despliegue:** Vercel, proyecto `planning-poker` (https://planning-poker-nine-nu.vercel.app),
+  con las funciones en `yul1` (Montreal), junto a la BD en `ca-central-1` (`vercel.json`).
 
 ## 2. Arquitectura
 
@@ -85,7 +86,8 @@ App **Next.js full-stack** (App Router) desplegada en Vercel.
 1. **Node 22:** ejecuta `nvm use` en la raíz (lee `.nvmrc`). pnpm 11 exige Node ≥ 22.13.
 2. **Dependencias:** `pnpm install`.
 3. **Supabase en la nube (plan Free):** crea un proyecto `planning-poker-dev` en supabase.com
-   para desarrollo y pruebas. Producción usa otro proyecto, `planning-poker-prod`.
+   para desarrollo y pruebas. Por ahora producción usa **el mismo proyecto** (decisión del
+   2026-10-17: el plan Free no ofrece São Paulo); las pruebas solo crean y borran salas `test-`.
 4. **Variables:** copia `.env.example` como `.env.local` y rellena los valores del proyecto
    (Supabase → *Connect* y *Project Settings → API*). `.env.local` nunca se sube a git.
 5. **Base de datos:** `pnpm prisma migrate dev` aplica las migraciones.
