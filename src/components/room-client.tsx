@@ -33,6 +33,9 @@ function statusForError(error: ActionError): Status {
     case "NOT_MODERATOR":
     case "VOTES_PRESENT":
     case "ROUND_CLOSED":
+    case "NO_VOTES":
+    case "ROUND_NOT_REVEALED":
+    case "ESTIMATE_PRESENT":
       return { kind: "error" };
   }
 }

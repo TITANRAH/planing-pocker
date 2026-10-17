@@ -39,13 +39,13 @@
   - **Hecho cuando:** las pruebas pasan
 
 ## Fase 3 — Servidor
-- [ ] **T005** `castVote`/`clearVote` bajo `FOR SHARE` de la ronda
+- [x] **T005** `castVote`/`clearVote` bajo `FOR SHARE` de la ronda
   - **RF:** RF-02, RF-12
   - **Archivos:** `src/server/room-service.ts`, `tests/integration/server/voting.test.ts`
   - **Prueba primero:** las pruebas de voto de la 002 siguen en verde; votar en una ronda
     `REVEALED` → `ROUND_CLOSED`
   - **Hecho cuando:** las pruebas pasan y votar sigue por debajo de 2 s (medido)
-- [ ] **T006** `revealRound` con foto fija
+- [x] **T006** `revealRound` con foto fija
   - **RF:** RF-01, RF-03, RF-11, RF-12, RF-13
   - **Archivos:** `src/server/room-service.ts`, `src/server/rooms.ts`, `tests/integration/server/reveal.test.ts`
   - **Prueba primero:** revela y guarda la foto de los activos (con y sin carta); sin votos →
@@ -53,20 +53,20 @@
     revelada → `ROUND_CLOSED`; **voto y revelado simultáneos**: el voto sale en la foto o recibe
     `ROUND_CLOSED`, nunca "ok" sin salir en la foto
   - **Hecho cuando:** las pruebas pasan (la de concurrencia, 5 veces seguidas)
-- [ ] **T007** `setEstimate`
+- [x] **T007** `setEstimate`
   - **RF:** RF-07, RF-12, RF-13
   - **Archivos:** igual que T006
   - **Prueba primero:** fija "8" con quién y cuándo; permite cambiarla; "?" → `VALIDATION`; ronda
     abierta → `ROUND_NOT_REVEALED`; un jugador → `NOT_MODERATOR`
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T008** `revote`
+- [x] **T008** `revote`
   - **RF:** RF-08, RF-12, RF-13
   - **Archivos:** igual que T006
   - **Prueba primero:** abre una ronda `OPEN` con la misma tarea y deja la revelada como estaba;
     con estimación y `confirm=false` → `ESTIMATE_PRESENT`; con `confirm=true` borra la estimación;
     ronda abierta → `ROUND_NOT_REVEALED`; un jugador → `NOT_MODERATOR`
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T009** `getRoomState` con ronda revelada y nueva tarea tras revelar
+- [x] **T009** `getRoomState` con ronda revelada y nueva tarea tras revelar
   - **RF:** RF-03, RF-09, RF-10, RF-11
   - **Archivos:** igual que T006
   - **Prueba primero:** con la ronda revelada devuelve `round.status`, la foto y la estimación;
@@ -74,7 +74,7 @@
     ronda abierta no hay foto ni cartas ajenas; `newTask` tras revelar no devuelve
     `VOTES_PRESENT` y la ronda revelada sigue `REVEALED` con su foto
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T010** Broadcast `reveal` y `estimate` (y `task` al volver a votar)
+- [x] **T010** Broadcast `reveal` y `estimate` (y `task` al volver a votar)
   - **RF:** RF-01, RF-07, RF-08
   - **Archivos:** `src/server/room-service.ts`, `src/lib/realtime/outgoing.ts`, `tests/integration/server/reveal.test.ts`
   - **Prueba primero:** un oyente del canal recibe `reveal` con la foto, `estimate` al fijar y,

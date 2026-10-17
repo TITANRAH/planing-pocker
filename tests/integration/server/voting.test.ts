@@ -162,7 +162,7 @@ describe("newTask concurrente", () => {
     expect(open).toHaveLength(1);
     const state = await getRoomState(r.roomId, { jar: r.mod.jar, now: at(10 * SEC) });
     if (!state.ok) throw new Error(state.error);
-    expect(state.data.round).toEqual({ id: open[0]?.id });
+    expect(state.data.round).toEqual({ id: open[0]?.id, status: "OPEN" });
   });
 });
 
@@ -313,7 +313,7 @@ describe("getRoomState con votación", () => {
     const state = await getRoomState(r.roomId, { jar: r.ana.jar, now: NOW });
     if (!state.ok) throw new Error(state.error);
     expect(state.data.task).toEqual({ id: r.taskId, title: "Login con Google", detail: null });
-    expect(state.data.round).toEqual({ id: r.roundId });
+    expect(state.data.round).toEqual({ id: r.roundId, status: "OPEN" });
     expect(state.data.voted).toEqual([r.ana.id]);
     expect(state.data.myVote).toBe("13");
   });

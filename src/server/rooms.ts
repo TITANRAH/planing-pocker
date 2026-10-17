@@ -49,3 +49,15 @@ export async function castVote(input: unknown) {
 export async function clearVote(input: unknown) {
   return service.clearVote(input, await requestDeps());
 }
+
+export async function revealRound(input: unknown) {
+  return service.revealRound(input, await requestDeps());
+}
+
+export async function setEstimate(input: unknown) {
+  return service.setEstimate(input, await requestDeps());
+}
+
+export async function revote(input: unknown) {
+  return service.revote(input, await requestDeps());
+}

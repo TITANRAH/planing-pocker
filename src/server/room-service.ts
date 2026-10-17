@@ -1,6 +1,12 @@
 import { Prisma } from "@/generated/prisma/client";
 import { generateRoomId } from "@/lib/domain/room-id";
-import { byePayload, taskEventPayload, voteEventPayload } from "@/lib/realtime/outgoing";
+import {
+  byePayload,
+  estimateEventPayload,
+  revealEventPayload,
+  taskEventPayload,
+  voteEventPayload,
+} from "@/lib/realtime/outgoing";
 import {
   canJoin,
   isActive,
@@ -15,6 +21,14 @@ import {
   type Role,
   roomIdSchema,
 } from "@/lib/schemas/room";
+import {
+  estimateSchema,
+  type NumericCard,
+  type RevealEntryView,
+  revealInput,
+  revoteInput,
+  setEstimateInput,
+} from "@/lib/schemas/reveal";
 import {
   type Card,
   cardSchema,
@@ -40,7 +54,10 @@ export type ActionError =
   | "NOT_A_PARTICIPANT"
   | "NOT_MODERATOR"
   | "VOTES_PRESENT"
-  | "ROUND_CLOSED";
+  | "ROUND_CLOSED"
+  | "NO_VOTES"
+  | "ROUND_NOT_REVEALED"
+  | "ESTIMATE_PRESENT";
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ActionError };
 
@@ -346,11 +363,14 @@ export type RoomState = {
   room: { id: string; name: string };
   me: string;
   participants: ParticipantView[];
-  // Votación (spec 002). Nunca incluye las cartas de los demás (Art. VI)
+  // Votación (spec 002). Con la ronda abierta nunca incluye las cartas de los demás (Art. VI)
   task: TaskView | null;
-  round: { id: string } | null;
+  round: { id: string; status: "OPEN" | "REVEALED" } | null;
   voted: string[];
   myVote: Card | null;
+  // Revelado (spec 003): foto fija de la ronda revelada y estimación final de la tarea
+  entries: RevealEntryView[];
+  estimate: NumericCard | null;
 };
 
 export async function getRoomState(
@@ -367,9 +387,16 @@ export async function getRoomState(
       include: { participants: { orderBy: { createdAt: "asc" } } },
     }),
     db.round.findFirst({
-      where: { roomId, status: "OPEN" },
+      where: { roomId, status: { in: ["OPEN", "REVEALED"] } },
       orderBy: LATEST_FIRST,
-      include: { task: true, votes: { select: { participantId: true, card: true } } },
+      include: {
+        task: true,
+        votes: { select: { participantId: true, card: true } },
+        entries: {
+          orderBy: { participant: { createdAt: "asc" } },
+          select: { participantId: true, nickname: true, card: true },
+        },
+      },
     }),
   ]);
   if (!room) return fail("ROOM_NOT_FOUND");
@@ -380,7 +407,11 @@ export async function getRoomState(
 
   const active = room.participants.filter((p) => isActive(p, now));
   const activeIds = new Set(active.map((p) => p.id));
-  const myCard = round?.votes.find((v) => v.participantId === me.id)?.card;
+  // Las cartas solo salen del servidor desde una ronda revelada (Art. VI); con la ronda abierta,
+  // solo quién votó y la carta propia
+  const open = round?.status === "OPEN" ? round : null;
+  const revealed = round?.status === "REVEALED" ? round : null;
+  const myCard = open?.votes.find((v) => v.participantId === me.id)?.card;
   return {
     ok: true,
     data: {
@@ -394,10 +425,19 @@ export async function getRoomState(
         disconnectedAt: p.disconnectedAt,
       })),
       task: round ? taskView(round.task) : null,
-      round: round ? { id: round.id } : null,
-      voted: round ? round.votes.map((v) => v.participantId).filter((id) => activeIds.has(id)) : [],
+      round: round
+        ? { id: round.id, status: round.status === "REVEALED" ? "REVEALED" : "OPEN" }
+        : null,
+      voted: open ? open.votes.map((v) => v.participantId).filter((id) => activeIds.has(id)) : [],
       // Solo la carta propia; las demás no salen del servidor
       myVote: myCard ? cardSchema.parse(myCard) : null,
+      entries: revealed
+        ? revealed.entries.map((e) => ({
+            ...e,
+            card: e.card === null ? null : cardSchema.parse(e.card),
+          }))
+        : [],
+      estimate: round ? estimateSchema.nullable().parse(round.task.estimate) : null,
     },
   };
 }
@@ -529,23 +569,38 @@ export async function castVote(input: unknown, { jar, now }: Deps): Promise<Acti
   const { me, open } = ctx.data;
   if (!open || open.id !== roundId) return fail("ROUND_CLOSED");
 
-  // Cambiar la carta es una sola escritura; si no había voto, se crea (primer voto)
+  // Bajo bloqueo compartido de la ronda (plan 003): si el moderador revela a la vez, el voto o
+  // llega antes y sale en la foto, o espera al revelado y se rechaza (RF-12 de la 003)
   const where = { roundId, participantId: me.id };
-  const { count } = await db.vote.updateMany({ where, data: { card } });
-  let isFirstVote = false;
-  if (count === 0) {
-    try {
-      await db.vote.create({ data: { ...where, card } });
-      isFirstVote = true;
-    } catch (error) {
-      // Otra petición del mismo participante creó el voto a la vez: basta con actualizarlo
-      if (!isUniqueViolation(error)) throw error;
-      await db.vote.updateMany({ where, data: { card } });
-    }
+  let written: { isFirstVote: boolean } | null;
+  try {
+    written = await db.$transaction(async (tx) => {
+      if (!(await isRoundOpen(tx, roundId))) return null;
+      const existing = await tx.vote.findUnique({ where: { roundId_participantId: where } });
+      await tx.vote.upsert({
+        where: { roundId_participantId: where },
+        create: { ...where, card },
+        update: { card },
+      });
+      return { isFirstVote: !existing };
+    });
+  } catch (error) {
+    // Otra petición del mismo participante creó el voto a la vez: ya está registrado
+    if (!isUniqueViolation(error)) throw error;
+    written = { isFirstVote: false };
   }
+  if (!written) return fail("ROUND_CLOSED");
   // Cambiar de carta no cambia "ya votó": solo se avisa del primer voto
-  if (isFirstVote) await announceVote(roomId, roundId, me.id, true);
+  if (written.isFirstVote) await announceVote(roomId, roundId, me.id, true);
   return { ok: true, data: null };
+}
+
+// Comprueba que la ronda sigue abierta y la bloquea en modo compartido hasta el final de la
+// transacción: revelar (FOR UPDATE) espera a que terminen los votos en curso
+async function isRoundOpen(tx: Tx, roundId: string): Promise<boolean> {
+  const [row] = await tx.$queryRaw<{ status: string }[]>`
+    SELECT "status"::text AS status FROM "Round" WHERE "id" = ${roundId} FOR SHARE`;
+  return row?.status === "OPEN";
 }
 
 // RF-04: quita el voto propio de la ronda abierta
@@ -557,7 +612,12 @@ export async function clearVote(input: unknown, { jar, now }: Deps): Promise<Act
   if (!ctx.ok) return ctx;
   const { me, open } = ctx.data;
   if (!open || open.id !== roundId) return fail("ROUND_CLOSED");
-  const { count } = await db.vote.deleteMany({ where: { roundId, participantId: me.id } });
+  const count = await db.$transaction(async (tx) => {
+    if (!(await isRoundOpen(tx, roundId))) return null;
+    const deleted = await tx.vote.deleteMany({ where: { roundId, participantId: me.id } });
+    return deleted.count;
+  });
+  if (count === null) return fail("ROUND_CLOSED");
   if (count > 0) await announceVote(roomId, roundId, me.id, false);
   return { ok: true, data: null };
 }
@@ -578,4 +638,122 @@ async function announceVote(
   voted: boolean,
 ) {
   await broadcastToRoom(roomId, "vote", voteEventPayload({ roundId, participantId, voted }));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Revelado (spec 003). Solo el moderador revela, fija la estimación y vuelve a votar (Art. VI.3).
+
+export type RevealResult = { roundId: string; entries: RevealEntryView[] };
+
+// Ronda actual de la sala: la más reciente que no fue reemplazada (abierta o revelada)
+function currentRound(roomId: string) {
+  return db.round.findFirst({
+    where: { roomId, status: { in: ["OPEN", "REVEALED"] } },
+    orderBy: LATEST_FIRST,
+    include: { task: true },
+  });
+}
+
+// RF-01, RF-03, RF-12: revela la ronda abierta y guarda la foto fija de quienes están en la sala
+export async function revealRound(
+  input: unknown,
+  { jar, now }: Deps,
+): Promise<ActionResult<RevealResult>> {
+  const parsed = revealInput.safeParse(input);
+  if (!parsed.success) return fail("VALIDATION");
+  const { roomId, roundId } = parsed.data;
+  const self = await findActiveSelf(db, roomId, jar, now);
+  if (!self.ok) return self;
+  if (self.data.role !== "MODERATOR") return fail("NOT_MODERATOR");
+
+  const result = await db.$transaction(async (tx): Promise<ActionResult<RevealResult>> => {
+    // Bloqueo exclusivo: espera a los votos en curso y bloquea los nuevos hasta terminar
+    const [row] = await tx.$queryRaw<{ status: string }[]>`
+      SELECT "status"::text AS status FROM "Round"
+      WHERE "id" = ${roundId} AND "roomId" = ${roomId} FOR UPDATE`;
+    if (row?.status !== "OPEN") return fail("ROUND_CLOSED");
+    const participants = await tx.participant.findMany({
+      where: { roomId },
+      orderBy: { createdAt: "asc" },
+    });
+    const votes = await tx.vote.findMany({ where: { roundId } });
+    const cardOf = new Map(votes.map((v) => [v.participantId, cardSchema.parse(v.card)]));
+    // Foto fija: quienes están en la sala al revelar, hayan votado o no (RF-03)
+    const entries = participants
+      .filter((p) => isActive(p, now))
+      .map((p) => ({ participantId: p.id, nickname: p.nickname, card: cardOf.get(p.id) ?? null }));
+    if (!entries.some((e) => e.card !== null)) return fail("NO_VOTES");
+    await tx.round.update({
+      where: { id: roundId },
+      data: { status: "REVEALED", revealedAt: now },
+    });
+    await tx.revealEntry.createMany({ data: entries.map((e) => ({ roundId, ...e })) });
+    return { ok: true, data: { roundId, entries } };
+  });
+  if (result.ok) await broadcastToRoom(roomId, "reveal", revealEventPayload(result.data));
+  return result;
+}
+
+// RF-07: fija (o cambia) la estimación final de la tarea de la ronda revelada
+export async function setEstimate(input: unknown, { jar, now }: Deps): Promise<ActionResult<null>> {
+  const parsed = setEstimateInput.safeParse(input);
+  if (!parsed.success) return fail("VALIDATION");
+  const { roomId, roundId, card } = parsed.data;
+  const [self, round] = await Promise.all([
+    findActiveSelf(db, roomId, jar, now),
+    currentRound(roomId),
+  ]);
+  if (!self.ok) return self;
+  if (self.data.role !== "MODERATOR") return fail("NOT_MODERATOR");
+  if (!round || round.id !== roundId) return fail("ROUND_CLOSED");
+  if (round.status !== "REVEALED") return fail("ROUND_NOT_REVEALED");
+
+  await db.task.update({
+    where: { id: round.taskId },
+    data: { estimate: card, estimatedAt: now, estimatedById: self.data.id },
+  });
+  await broadcastToRoom(
+    roomId,
+    "estimate",
+    estimateEventPayload({ taskId: round.taskId, roundId, estimate: card }),
+  );
+  return { ok: true, data: null };
+}
+
+// RF-08: abre una ronda nueva con la misma tarea; borra la estimación (con confirmación si estaba fijada)
+export async function revote(
+  input: unknown,
+  { jar, now }: Deps,
+): Promise<ActionResult<TaskResult>> {
+  const parsed = revoteInput.safeParse(input);
+  if (!parsed.success) return fail("VALIDATION");
+  const { roomId, roundId, confirm } = parsed.data;
+  const [self, round] = await Promise.all([
+    findActiveSelf(db, roomId, jar, now),
+    currentRound(roomId),
+  ]);
+  if (!self.ok) return self;
+  if (self.data.role !== "MODERATOR") return fail("NOT_MODERATOR");
+  if (!round || round.id !== roundId) return fail("ROUND_CLOSED");
+  if (round.status !== "REVEALED") return fail("ROUND_NOT_REVEALED");
+  if (round.task.estimate !== null && !confirm) return fail("ESTIMATE_PRESENT");
+
+  const [next, task] = await Promise.all([
+    db.round.create({
+      data: { roomId, taskId: round.taskId, openedAt: now },
+      select: { id: true },
+    }),
+    db.task.update({
+      where: { id: round.taskId },
+      data: { estimate: null, estimatedAt: null, estimatedById: null },
+    }),
+  ]);
+  const result: TaskResult = { roundId: next.id, task: taskView(task) };
+  await broadcastToRoom(roomId, "task", taskEventPayload(result));
+  await broadcastToRoom(
+    roomId,
+    "estimate",
+    estimateEventPayload({ taskId: task.id, roundId: next.id, estimate: null }),
+  );
+  return { ok: true, data: result };
 }

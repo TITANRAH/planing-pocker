@@ -10,6 +10,9 @@ const STATUS: Record<ActionError, number> = {
   NOT_MODERATOR: 403,
   VOTES_PRESENT: 409,
   ROUND_CLOSED: 409,
+  NO_VOTES: 409,
+  ROUND_NOT_REVEALED: 409,
+  ESTIMATE_PRESENT: 409,
 };
 
 // Recibe el beacon que envía el navegador al cerrar la pestaña o salir de la sala (RF-10)
