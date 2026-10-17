@@ -1,7 +1,7 @@
 # Spec 004 — Historial de tareas estimadas
 
 - **Estado:** En implementación (aprobada el 2026-10-17)
-- **Versión:** 1.0
+- **Versión:** 1.1
 - **Fecha:** 2026-10-17
 
 ## 1. Contexto
@@ -38,12 +38,13 @@ spec 003.
 ### RF-01 — Lista de tareas estimadas
 El sistema debe mostrar en la sala una sección "Historial" con las tareas que tienen estimación
 final, ordenadas por la hora de su última estimación (la más reciente primero), con su título, su
-estimación y esa hora ("14:32", en la hora local de cada participante). Si se cambia una
-estimación antigua, la tarea sube al principio.
+estimación y esa hora ("14:32", en la hora local de cada participante). La estimación de una
+tarea solo puede cambiarse mientras es la tarea actual (spec 003, RF-07); al cambiarla, su hora
+pasa a ser la del cambio.
 
 **Criterios de aceptación**
 - **Dado** que se estimaron "Login" con 5 y después "Logout" con 3 **Cuando** miro el historial **Entonces** veo primero "Logout · 3" y después "Login · 5", cada una con su hora.
-- **Dado** que "Login" se estimó antes que "Logout" **Cuando** el moderador cambia la estimación de "Login" **Entonces** "Login" pasa a ser la primera.
+- **Dado** que "Login" es la tarea actual y se estimó a las 14:30 **Cuando** el moderador la cambia a las 14:35 **Entonces** el historial muestra "Login" con el nuevo valor y "14:35".
 
 ### RF-02 — Resumen de la sesión
 El sistema debe mostrar cuántas tareas se estimaron y la suma de sus estimaciones.
@@ -122,7 +123,8 @@ El sistema debe mostrar solo las tareas de la propia sala.
 - Todos los participantes ven y exportan el historial; nadie lo edita aquí.
 - Tiempos: ≤ 2 s para reflejar una estimación nueva, cambiada o borrada.
 - Sin datos nuevos: el historial se construye con lo que guardan las specs 002 y 003.
-- Orden y hora: los de la última estimación (local de cada participante).
+- Orden y hora: los de la última estimación (local de cada participante); la estimación solo
+  cambia mientras la tarea es la actual (spec 003).
 - CSV: separador `;`, UTF-8 con BOM, comillas cuando hace falta, nombre `planning-poker-<sala>-<AAAA-MM-DD>.csv`.
 - Solo cuentan las rondas reveladas (detalle y columna `Rondas`).
 
@@ -131,11 +133,12 @@ El sistema debe mostrar solo las tareas de la propia sala.
 |---|---|---|---|
 | 1 | ¿Qué separador usa el CSV? | Punto y coma, comillas cuando haga falta y UTF-8 con BOM, para abrirlo bien en Excel en español (RF-05). | 2026-10-17 |
 | 2 | ¿Qué fecha y hora se muestran y exportan? | La de la última estimación; en pantalla "14:32" y en el CSV "2026-10-17 14:32", en hora local (RF-01, RF-05). | 2026-10-17 |
-| 3 | ¿Cómo se ordena el historial? | Por la hora de la última estimación, la más reciente primero; al cambiar una estimación la tarea sube (RF-01). | 2026-10-17 |
+| 3 | ¿Cómo se ordena el historial? | Por la hora de la última estimación, la más reciente primero (RF-01). Corregido en v1.1: la estimación solo cambia mientras la tarea es la actual (spec 003), así que una tarea antigua no puede "subir". | 2026-10-17 |
 | 4 | ¿Cómo se llama el archivo exportado? | `planning-poker-<sala>-<AAAA-MM-DD>.csv`, sin caracteres especiales (RF-05). | 2026-10-17 |
 | 5 | ¿Cuentan las rondas no reveladas? | No; solo las reveladas, en el detalle y en la columna `Rondas` (RF-04, RF-05). | 2026-10-17 |
 
 ## 8. Historial de cambios
-| Versión | Fecha | Cambio |
-|---|---|---|
-| 1.0 | 2026-10-17 | Versión inicial |
+| Versión | Fecha | Tipo | Cambio | RF afectados |
+|---|---|---|---|---|
+| 1.0 | 2026-10-17 | Inicial | Versión inicial | — |
+| 1.1 | 2026-10-17 | Comportamiento | Se quita el criterio imposible "cambiar una estimación antigua la sube" (contradecía la spec 003, RF-07); el orden es por la última estimación, que solo cambia con la tarea actual | RF-01 (mod.) |

@@ -29,6 +29,7 @@ import {
   revoteInput,
   setEstimateInput,
 } from "@/lib/schemas/reveal";
+import { type HistoryItem, historyItemSchema } from "@/lib/schemas/history";
 import {
   type Card,
   cardSchema,
@@ -756,4 +757,56 @@ export async function revote(
     estimateEventPayload({ taskId: task.id, roundId: next.id, estimate: null }),
   );
   return { ok: true, data: result };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Historial (spec 004). Solo lectura: tareas de la sala con estimación vigente y sus rondas
+// reveladas. Nunca lee votos ni rondas abiertas, así que no puede filtrar cartas (Art. VI).
+
+export async function getHistory(
+  roomIdInput: unknown,
+  { jar, now }: Deps,
+): Promise<ActionResult<HistoryItem[]>> {
+  const parsed = roomIdSchema.safeParse(roomIdInput);
+  if (!parsed.success) return fail("VALIDATION");
+  const roomId = parsed.data;
+  const [room, self, tasks] = await Promise.all([
+    db.room.findUnique({ where: { id: roomId }, select: { id: true } }),
+    findActiveSelf(db, roomId, jar, now),
+    db.task.findMany({
+      where: { roomId, estimate: { not: null } },
+      orderBy: [{ estimatedAt: "desc" }, { id: "desc" }],
+      include: {
+        rounds: {
+          where: { status: "REVEALED" },
+          orderBy: { revealedAt: "asc" },
+          include: {
+            entries: {
+              orderBy: { participant: { createdAt: "asc" } },
+              select: { participantId: true, nickname: true, card: true },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+  if (!room) return fail("ROOM_NOT_FOUND");
+  if (!self.ok) return self;
+
+  // Se valida con Zod lo que sale de la BD (estimación numérica y cartas de la baraja)
+  const items = tasks.map((task) =>
+    historyItemSchema.parse({
+      taskId: task.id,
+      title: task.title,
+      detail: task.detail,
+      estimate: task.estimate,
+      estimatedAt: task.estimatedAt,
+      rounds: task.rounds.map((round) => ({
+        roundId: round.id,
+        revealedAt: round.revealedAt,
+        entries: round.entries,
+      })),
+    }),
+  );
+  return { ok: true, data: items };
 }

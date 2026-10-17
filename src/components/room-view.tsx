@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { CardDeck } from "@/components/card-deck";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { EstimatePicker } from "@/components/estimate-picker";
+import { HistoryPanel } from "@/components/history-panel";
 import { ParticipantList } from "@/components/participant-list";
 import { RevealButton } from "@/components/reveal-button";
 import { RevealedRound } from "@/components/revealed-round";
@@ -14,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { VoteCounter } from "@/components/vote-counter";
 import { useRoomChannel } from "@/lib/realtime/use-room-channel";
+import { useRoomHistory } from "@/lib/realtime/use-room-history";
 import { useRoomPresence } from "@/lib/realtime/use-room-presence";
 import { useRoomVoting } from "@/lib/realtime/use-room-voting";
 import { summarizeRound } from "@/lib/domain/reveal";
@@ -46,6 +48,7 @@ export function RoomView({ state, onExpired }: Props) {
     onExpired,
   });
   const voting = useRoomVoting({ channel, roomId: state.room.id, initial: state });
+  const history = useRoomHistory({ channel, roomId: state.room.id });
 
   const isModerator = me.role === "MODERATOR";
   const hasModerator = participants.some((p) => p.role === "MODERATOR");
@@ -72,14 +75,17 @@ export function RoomView({ state, onExpired }: Props) {
     const result = await setEstimate({ roomId: state.room.id, roundId, card });
     if (result.ok) {
       voting.apply({ type: "estimate", payload: { taskId: task.id, roundId, estimate: card } });
+      history.refresh();
     } else await voting.refresh();
   }
 
   async function revoteRound() {
     if (!roundId) return;
     const result = await revote({ roomId: state.room.id, roundId, confirm: true });
-    if (result.ok) voting.apply({ type: "task", payload: result.data });
-    else await voting.refresh();
+    if (result.ok) {
+      voting.apply({ type: "task", payload: result.data });
+      history.refresh();
+    } else await voting.refresh();
   }
 
   return (
@@ -127,6 +133,8 @@ export function RoomView({ state, onExpired }: Props) {
         <Separator />
         {!revealed && <VoteCounter voted={count.voted} total={count.total} />}
         <ParticipantList participants={listed} />
+        <Separator />
+        <HistoryPanel roomName={state.room.name} items={history.items} />
       </CardContent>
     </Card>
   );

@@ -1,8 +1,8 @@
 # Plan 004 — Historial de tareas estimadas
 
-- **Spec:** ./spec.md (versión 1.0)
+- **Spec:** ./spec.md (versión 1.1)
 - **Fecha:** 2026-10-17
-- **Estado:** Aprobado (2026-10-17) · versión 1.0
+- **Estado:** Aprobado (2026-10-17) · versión 1.1
 
 ## 1. Resumen técnico
 El historial **no guarda datos nuevos**: una Server Action de solo lectura, `getHistory`, lo
@@ -66,7 +66,7 @@ El botón descarga el CSV en el navegador (Blob + enlace de descarga) con el nom
 ## 6. Matriz de trazabilidad
 | RF | Diseño | Prueba |
 |---|---|---|
-| RF-01 | `getHistory` (orden por `estimatedAt`), `formatHistoryTime`, `HistoryPanel` | unit `domain/history.test.ts` · integración `server/history.test.ts` (orden; al cambiar sube) · e2e `history.spec.ts` |
+| RF-01 | `getHistory` (orden por `estimatedAt`), `formatHistoryTime`, `HistoryPanel` | unit `domain/history.test.ts` · integración `server/history.test.ts` (orden; cambio de la tarea actual → nueva hora) · e2e `history.spec.ts` |
 | RF-02 | `historySummary` | unit · e2e |
 | RF-03 | `getHistory` (solo `estimate` no nulo) | integración (reemplazada sin estimar no sale; cambio → último valor; volver a votar → sale) · e2e |
 | RF-04 | Rondas `REVEALED` + `summarizeRound` | integración (dos rondas en orden; ronda no revelada no cuenta) · e2e (acordeón) |
@@ -90,3 +90,4 @@ El botón descarga el CSV en el navegador (Blob + enlace de descarga) con el nom
 | Versión | Fecha | Tipo | Cambio |
 |---|---|---|---|
 | 1.0 | 2026-10-17 | Inicial | Versión inicial |
+| 1.1 | 2026-10-17 | Ajuste por la spec 004 v1.1 | Matriz de RF-01: el cambio de estimación es solo el de la tarea actual. Sin cambios de diseño. |

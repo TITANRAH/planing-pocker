@@ -2,7 +2,7 @@
 
 - **Plan:** ./plan.md
 - **Fecha:** 2026-10-17
-- **Estado:** Aprobado (2026-10-17)
+- **Estado:** Aprobado (2026-10-17) · ajustado a la spec v1.1 (2026-10-17)
 
 ## Fase 1 — Preparación
 - [x] **T001** shadcn/ui: añadir `accordion`
@@ -12,13 +12,13 @@
   - **Hecho cuando:** el componente compila
 
 ## Fase 2 — Dominio
-- [ ] **T002** Esquemas Zod del historial
+- [x] **T002** Esquemas Zod del historial
   - **RF:** RF-01, RF-04, RF-05
   - **Archivos:** `src/lib/schemas/history.ts`, `tests/unit/schemas/history.test.ts`
   - **Prueba primero:** `historyItemSchema` acepta una tarea con estimación numérica y rondas con
     foto; rechaza estimación "?" o nula y cartas fuera de la baraja
   - **Hecho cuando:** las pruebas pasan
-- [ ] **T003** Resumen, fechas, CSV y nombre del archivo
+- [x] **T003** Resumen, fechas, CSV y nombre del archivo
   - **RF:** RF-01, RF-02, RF-05
   - **Archivos:** `src/lib/domain/history.ts`, `tests/unit/domain/history.test.ts`
   - **Prueba primero:** `historySummary` (3 tareas: 5, 3 y 8 → 3 tareas · 16 puntos; vacío → 0 · 0);
@@ -30,18 +30,18 @@
   - **Hecho cuando:** las pruebas pasan
 
 ## Fase 3 — Servidor
-- [ ] **T004** `getHistory`
+- [x] **T004** `getHistory`
   - **RF:** RF-01, RF-03, RF-04, RF-08, RF-10
   - **Archivos:** `src/server/room-service.ts`, `src/server/rooms.ts`, `tests/integration/server/history.test.ts`
-  - **Prueba primero:** solo tareas con estimación, ordenadas por la última estimación (cambiar
-    una antigua la sube); cambio → último valor; volver a votar → la tarea sale; tarea
+  - **Prueba primero:** solo tareas con estimación, ordenadas por la última estimación; cambiar
+    la de la tarea actual actualiza su valor y su hora; volver a votar → la tarea sale; tarea
     reemplazada sin estimar no sale; dos rondas reveladas en orden con su foto; una ronda
     abierta de una tarea ya estimada **no** aparece ni deja ver sus votos; otra sala no se
     mezcla; sin sesión → `NOT_A_PARTICIPANT`; sala inexistente → `ROOM_NOT_FOUND`
   - **Hecho cuando:** las pruebas pasan
 
 ## Fase 4 — Tiempo real
-- [ ] **T005** Hook `useRoomHistory`
+- [x] **T005** Hook `useRoomHistory`
   - **RF:** RF-07, RF-09
   - **Archivos:** `src/lib/realtime/use-room-history.ts`
   - **Prueba primero:** se cubre con los e2e de la fase 5
@@ -49,26 +49,26 @@
     llamadas, y compila sin `any`
 
 ## Fase 5 — UI
-- [ ] **T006** `HistoryPanel`: lista, resumen y estado vacío
+- [x] **T006** `HistoryPanel`: lista, resumen y estado vacío
   - **RF:** RF-01, RF-02, RF-06, RF-09
   - **Archivos:** `src/components/history-panel.tsx`, `src/components/room-view.tsx`, `tests/e2e/history.spec.ts`
   - **Prueba primero:** sin tareas estimadas: "Todavía no hay tareas estimadas" y "Exportar CSV"
     desactivado; tras estimar "Login" (5) y "Logout" (3): "Logout · 3" primero, "Login · 5"
     después y "2 tareas · 8 puntos"; quien entra tarde ve las dos
   - **Hecho cuando:** el e2e pasa
-- [ ] **T007** Detalle de rondas en acordeón
+- [x] **T007** Detalle de rondas en acordeón
   - **RF:** RF-04
   - **Archivos:** `src/components/history-panel.tsx`, `tests/e2e/history.spec.ts`
   - **Prueba primero:** una tarea votada dos veces muestra "Ronda 1" y "Ronda 2" con las cartas,
     el promedio y "¡Consenso!" donde corresponde
   - **Hecho cuando:** el e2e pasa
-- [ ] **T008** Exportar CSV
+- [x] **T008** Exportar CSV
   - **RF:** RF-05
   - **Archivos:** `src/components/history-panel.tsx`, `tests/e2e/history.spec.ts`
   - **Prueba primero:** "Exportar CSV" descarga `planning-poker-<sala>-<fecha>.csv` con BOM,
     cabecera y una fila por tarea en el orden de la pantalla
   - **Hecho cuando:** el e2e pasa
-- [ ] **T009** Historial en vivo y al volver a votar
+- [x] **T009** Historial en vivo y al volver a votar
   - **RF:** RF-03, RF-07
   - **Archivos:** `tests/e2e/history.spec.ts`
   - **Prueba primero:** cuando el moderador fija una estimación, otro navegador la ve en su
