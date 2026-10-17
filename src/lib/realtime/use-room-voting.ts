@@ -4,6 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { RoomChannel } from "@/lib/realtime/use-room-channel";
 import {
   initialVotingState,
+  type VotingEvent,
   type VotingSnapshot,
   votingReducer,
   type VotingState,
@@ -26,6 +27,8 @@ export type RoomVoting = {
   vote: (card: Card) => Promise<void>;
   // Vuelve a pedir el estado al servidor (p. ej. tras cargar o editar la tarea)
   refresh: () => Promise<void>;
+  // Aplica un evento ya confirmado por el servidor sin esperar al broadcast (spec 003)
+  apply: (event: VotingEvent) => void;
 };
 
 export function useRoomVoting({ channel, roomId, initial }: Options): RoomVoting {
@@ -53,6 +56,8 @@ export function useRoomVoting({ channel, roomId, initial }: Options): RoomVoting
     const unsubscribe = [
       channel.on("task", (payload) => dispatch({ type: "task", payload })),
       channel.on("vote", (payload) => dispatch({ type: "vote", payload })),
+      channel.on("reveal", (payload) => dispatch({ type: "reveal", payload })),
+      channel.on("estimate", (payload) => dispatch({ type: "estimate", payload })),
       channel.on("subscribed", () => void refresh()),
     ];
     const timer = setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
@@ -80,5 +85,5 @@ export function useRoomVoting({ channel, roomId, initial }: Options): RoomVoting
     [roomId, refresh],
   );
 
-  return { state, vote, refresh };
+  return { state, vote, refresh, apply: dispatch };
 }

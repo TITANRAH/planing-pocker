@@ -4,11 +4,11 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-// Un único canal de Realtime por sala, compartido por la presence (spec 001) y la votación
-// (spec 002). Funciona como un bus: el canal se suscribe una vez y reparte cada evento a los
-// hooks que se hayan registrado con `on` (plan 002, §4).
+// Un único canal de Realtime por sala, compartido por la presence (spec 001), la votación
+// (spec 002) y el revelado (spec 003). Funciona como un bus: el canal se suscribe una vez y
+// reparte cada evento a los hooks que se hayan registrado con `on` (plan 002, §4).
 
-const BROADCAST_EVENTS = ["hello", "bye", "task", "vote"] as const;
+const BROADCAST_EVENTS = ["hello", "bye", "task", "vote", "reveal", "estimate"] as const;
 export type BroadcastEvent = (typeof BROADCAST_EVENTS)[number];
 
 type ChannelEvents = {

@@ -82,14 +82,14 @@
   - **Hecho cuando:** las pruebas pasan
 
 ## Fase 4 — Tiempo real
-- [ ] **T011** Escuchar `reveal` y `estimate` en el bus y en `useRoomVoting`
+- [x] **T011** Escuchar `reveal` y `estimate` en el bus y en `useRoomVoting`
   - **RF:** RF-01, RF-07, RF-08
   - **Archivos:** `src/lib/realtime/use-room-channel.ts`, `src/lib/realtime/use-room-voting.ts`
   - **Prueba primero:** se cubre con el reducer de T004 y los e2e de la fase 5; las e2e de la 001 y la 002 siguen en verde
   - **Hecho cuando:** compila sin `any` y las e2e existentes pasan
 
 ## Fase 5 — UI
-- [ ] **T012** Revelar: botón, cartas reveladas, resumen y baraja cerrada
+- [x] **T012** Revelar: botón, cartas reveladas, resumen y baraja cerrada
   - **RF:** RF-01, RF-02, RF-03, RF-04, RF-05, RF-06, RF-10
   - **Archivos:** `src/components/reveal-button.tsx`, `src/components/revealed-round.tsx`,
     `src/components/round-summary.tsx`, `src/components/room-view.tsx`, `tests/e2e/reveal.spec.ts`
@@ -98,20 +98,20 @@
     las cartas quedan desactivadas; con 8 y 8 se ve "¡Consenso!"; quien entra después ve la
     foto sin aparecer en ella
   - **Hecho cuando:** el e2e pasa
-- [ ] **T013** Estimación final
+- [x] **T013** Estimación final
   - **RF:** RF-07
   - **Archivos:** `src/components/estimate-picker.tsx`, `src/components/room-view.tsx`, `tests/e2e/reveal.spec.ts`
   - **Prueba primero:** la carta sugerida aparece marcada; el moderador fija "8" y los demás ven
     "Estimación final: 8" en ≤ 2 s; los jugadores no ven el selector
   - **Hecho cuando:** el e2e pasa
-- [ ] **T014** Volver a votar y nueva tarea tras revelar
+- [x] **T014** Volver a votar y nueva tarea tras revelar
   - **RF:** RF-08, RF-09
   - **Archivos:** `src/components/room-view.tsx`, `src/components/task-panel.tsx`, `tests/e2e/reveal.spec.ts`
   - **Prueba primero:** "Volver a votar" sin estimación no pregunta y deja "0 de M" con la misma
     tarea; con estimación pide confirmar ("Se borrará la estimación final: 8"); "Nueva tarea"
     tras revelar no pide confirmación
   - **Hecho cuando:** el e2e pasa
-- [ ] **T015** Sala sin moderador en la ronda revelada
+- [x] **T015** Sala sin moderador en la ronda revelada
   - **RF:** RF-13
   - **Archivos:** `tests/e2e/reveal.spec.ts`
   - **Prueba primero:** con el moderador retirado (reloj simulado) no hay "Revelar cartas", ni
